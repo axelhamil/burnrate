@@ -1,6 +1,6 @@
 {
   "name": "burnrate",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "See whether you can go hard or should hold back: live 5-hour and 7-day quota pace, projection at reset, daily budget and the quota size in API dollars.",
   "author": {
     "name": "Axel Hamilcaro"
