@@ -1,0 +1,16 @@
+{
+  "name": "burnrate",
+  "owner": {
+    "name": "Axel Hamilcaro"
+  },
+  "metadata": {
+    "description": "burnrate, a Claude Code pane for subscription quota pace."
+  },
+  "plugins": [
+    {
+      "name": "burnrate",
+      "source": "./",
+      "description": "Live 5-hour and 7-day quota pace, projection at reset, daily budget and the quota size in API dollars."
+    }
+  ]
+}

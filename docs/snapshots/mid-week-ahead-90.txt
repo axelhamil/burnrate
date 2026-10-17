@@ -1,0 +1,19 @@
+7-day window · Ahead of pace: ease off
+███████████████│█████░░░░░░░░░░░░░░░░░░░░░░░░░░░ 44%
+Used 44% · resets Sun 11:00 (in 4d 20h)
+Projected at reset 77% from your last 4 weeks
+Budget 12%/day to land at 100%
+Today 14% of 14% ██████████
+Sun 11 ██████████░░░░░░░░░░░░░░ 9%
+Mon 12 ████████████████████████ 21%
+Tue 13 ████████████████░░░░░░░░ 14% today
+Quota ≈ $200 / week (1% ≈ $2.00)
+
+5-hour window · Room to spare
+██████████████████████░░░░░│░░░░░░░░░░░░░░░░░░░░ 45%
+Used 45% · resets 17:10 (in 2h 10m)
+Projected at reset 79% linear, no history yet
+Budget 25%/hour to land at 100%
+Quota size: learning (needs 5 points)
+
+│ marks where an even pace would be now. $ are API-equivalent and count this machine only.

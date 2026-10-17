@@ -1,0 +1,17 @@
+7-day window · On track
+░│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 1%
+Used 1% · resets Sun 11:00 (in 6d 22h)
+Projected at reset: too early to tell
+Budget 14%/day
+Today 0% of 14%
+Sun 11 ░░░░░░░░░░░░░░░░░░░░░░░░ 0% today
+Quota size: learning (needs 5 points)
+
+5-hour window · Room to spare
+███░░░░░░░│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 6%
+Used 6% · resets 17:00 (in 4h 00m)
+Projected at reset 30%
+Budget 24%/hour
+Quota size: learning (needs 5 points)
+
+│ even pace now · $ API-equivalent, this machine

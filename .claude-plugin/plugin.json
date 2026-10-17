@@ -1,0 +1,26 @@
+{
+  "name": "burnrate",
+  "version": "0.0.0",
+  "description": "See whether you can go hard or should hold back: live 5-hour and 7-day quota pace, projection at reset, daily budget and the quota size in API dollars.",
+  "author": {
+    "name": "Axel Hamilcaro"
+  },
+  "homepage": "https://github.com/axelhamil/burnrate",
+  "repository": "https://github.com/axelhamil/burnrate",
+  "license": "MIT",
+  "keywords": [
+    "quota",
+    "rate-limit",
+    "usage",
+    "pane"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "statusLine": {
+      "type": "boolean",
+      "title": "Status line",
+      "description": "Show a one-line quota summary under the prompt",
+      "default": true
+    }
+  }
+}

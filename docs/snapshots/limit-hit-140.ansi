@@ -1,0 +1,15 @@
+\u001b[1m7-day window\u001b[0m\u001b[2m · \u001b[0m\u001b[1;31mWill hit the limit around Sat 10:37\u001b[0m      \u001b[1m5-hour window\u001b[0m\u001b[2m · \u001b[0m\u001b[1;31mLimit reached\u001b[0m
+\u001b[31m█████████████████████████████████████\u001b[0m\u001b[1m│\u001b[0m\u001b[31m██████\u001b[0m\u001b[2m░░░░\u001b[0m 91%    \u001b[31m███████████████████████████████████\u001b[0m\u001b[1m│\u001b[0m\u001b[31m████████████\u001b[0m 100%
+Used 91% \u001b[2m· resets \u001b[0m\u001b[2mSun 11:00\u001b[0m\u001b[2m (in \u001b[0m\u001b[2m1d 15h\u001b[0m\u001b[2m)\u001b[0m                 Used 100% \u001b[2m· resets \u001b[0m\u001b[2m21:20\u001b[0m\u001b[2m (in \u001b[0m\u001b[2m1h 20m\u001b[0m\u001b[2m)\u001b[0m
+Projected at reset \u001b[31m115\u001b[0m\u001b[31m%\u001b[0m\u001b[2m \u001b[0m\u001b[2mtypical week\u001b[0m                    \u001b[2mQuota size: learning (needs 5 points)\u001b[0m
+Budget \u001b[31m5.5%/day\u001b[0m\u001b[2m to land at 100%\u001b[0m
+Today \u001b[31m13%\u001b[0m of 10% \u001b[31m██████████\u001b[0m\u001b[2m\u001b[0m
+\u001b[2mSun 11\u001b[0m ████████████████\u001b[2m░░░░░░░░\u001b[0m \u001b[2m12%\u001b[0m\u001b[2m\u001b[0m
+\u001b[2mMon 12\u001b[0m \u001b[33m████████████████████████\u001b[0m\u001b[2m\u001b[0m \u001b[2m18%\u001b[0m\u001b[2m\u001b[0m
+\u001b[2mTue 13\u001b[0m \u001b[33m███████████████████████\u001b[0m\u001b[2m░\u001b[0m \u001b[2m17%\u001b[0m\u001b[2m\u001b[0m
+\u001b[2mWed 14\u001b[0m \u001b[33m█████████████████████\u001b[0m\u001b[2m░░░\u001b[0m \u001b[2m16%\u001b[0m\u001b[2m\u001b[0m
+\u001b[2mThu 15\u001b[0m \u001b[33m████████████████████\u001b[0m\u001b[2m░░░░\u001b[0m \u001b[2m15%\u001b[0m\u001b[2m\u001b[0m
+\u001b[1mFri 16\u001b[0m █████████████████\u001b[2m░░░░░░░\u001b[0m \u001b[1m13%\u001b[0m\u001b[1m today\u001b[0m
+\u001b[2mQuota size: learning (needs 5 points)\u001b[0m
+
+\u001b[2m│ marks where an even pace would be now. $ are API-equivalent and count this machine only.\u001b[0m

@@ -1,0 +1,10 @@
+7-day window · On track                                5-hour window · Room to spare
+░│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 1%    ███░░░░░░░│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 6%
+Used 1% · resets Sun 11:00 (in 6d 22h)                 Used 6% · resets 17:00 (in 4h 00m)
+Projected at reset: too early to tell                  Projected at reset 30% linear, no history yet
+Budget 14%/day to land at 100%                         Budget 24%/hour to land at 100%
+Today 0% of 14% ░░░░░░░░░░                             Quota size: learning (needs 5 points)
+Sun 11 ░░░░░░░░░░░░░░░░░░░░░░░░ 0% today
+Quota size: learning (needs 5 points)
+
+│ marks where an even pace would be now. $ are API-equivalent and count this machine only.

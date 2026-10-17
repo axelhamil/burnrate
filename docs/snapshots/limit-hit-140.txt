@@ -1,0 +1,15 @@
+7-day window · Will hit the limit around Sat 10:37      5-hour window · Limit reached
+█████████████████████████████████████│██████░░░░ 91%    ███████████████████████████████████│████████████ 100%
+Used 91% · resets Sun 11:00 (in 1d 15h)                 Used 100% · resets 21:20 (in 1h 20m)
+Projected at reset 115% typical week                    Quota size: learning (needs 5 points)
+Budget 5.5%/day to land at 100%
+Today 13% of 10% ██████████
+Sun 11 ████████████████░░░░░░░░ 12%
+Mon 12 ████████████████████████ 18%
+Tue 13 ███████████████████████░ 17%
+Wed 14 █████████████████████░░░ 16%
+Thu 15 ████████████████████░░░░ 15%
+Fri 16 █████████████████░░░░░░░ 13% today
+Quota size: learning (needs 5 points)
+
+│ marks where an even pace would be now. $ are API-equivalent and count this machine only.
