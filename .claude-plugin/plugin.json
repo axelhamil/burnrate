@@ -1,7 +1,7 @@
 {
   "name": "burnrate",
   "version": "0.3.1",
-  "description": "See whether you can go hard or should hold back: live 5-hour and 7-day quota pace, projection at reset, daily budget and the quota size in API dollars.",
+  "description": "See whether you can go hard or should hold back: live 5-hour and 7-day quota pace, projection at reset, daily budget, quota size in API dollars, cost per project, alerts and a weekly recap.",
   "author": {
     "name": "Axel Hamilcaro"
   },
@@ -20,6 +20,12 @@
       "type": "boolean",
       "title": "Status line",
       "description": "Show a one-line quota band above the prompt",
+      "default": true
+    },
+    "alerts": {
+      "type": "boolean",
+      "title": "Alerts",
+      "description": "Toast when a verdict gets worse, notify before a limit and recap last week",
       "default": true
     }
   }

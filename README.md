@@ -1,7 +1,7 @@
 # burnrate
 
 A Claude Code pane that answers one question: can I go hard right now, or should I hold back?
-It tracks your subscription quota for the 5-hour and 7-day windows, projects where you will land at reset and tells you how much you can spend per day or per hour.
+It tracks your subscription quota for the 5-hour and 7-day windows, projects where you will land at reset and tells you how much you can spend per day or per hour. It also shows what each project costs you, warns you before a limit and recaps last week.
 
 ```
 7-day window · Ahead of pace: ease off                  5-hour window · Room to spare
@@ -13,7 +13,12 @@ Today 14% of 14% ██████████                             Quot
 Sun 11 ██████████░░░░░░░░░░░░░░ 9%
 Mon 12 ████████████████████████ 21%
 Tue 13 ████████████████░░░░░░░░ 14% today
-Quota ≈ $200 / week (1% ≈ $2.00)
+Quota ≈ $260 / week (1% ≈ $2.60)
+This session $6.00 (2.3%)
+Top projects this week
+api $20 (7.7%)
+burnrate $6.00 (2.3%)
+Last week peaked 50%
 
 │ marks where an even pace would be now. $ are API-equivalent and count this machine only.
 ```
@@ -42,7 +47,19 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 `/burnrate` toggles the pane. It refreshes on every API response and once a minute.
 
-A one-line band also shows right above the prompt, in a rounded frame tinted by the verdict, for example `● easy tiger   7d → 77%   12%/d   today █████ 14/14%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), and from 86 columns adds a bar of today's budget and one bar per day with a reading (the same days as the pane), yellow above the even pace. Under 68 columns it drops today to stay on one line. Turn it off with the `statusLine` option (default on) in the plugin settings.
+A one-line band also shows right above the prompt, in a rounded frame tinted by the verdict, for example `● easy tiger   7d → 77%   12%/d   today █████ 14/14%   session 2.3%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), then the 7d projection, the daily budget, today against its budget (with a bar from 86 columns), what this session cost in quota points (in dollars until the quota size is learned), one bar per day with a reading (yellow above the even pace) and the 5h use. When the line is too long for the terminal it drops the day bars first, then the session, today and the budget. Turn it off with the `statusLine` option (default on) in the plugin settings.
+
+On Opus, when the worse verdict is `easy tiger` or above, the band ends with `try sonnet`.
+
+The pane also lists this session's cost and the top 5 projects of the current 7d window (a project is the folder the session started in), with their share of the quota once its size is known, and a `Last week` line with the peak of the 7d window that closed in the last 7 days and its busiest day.
+
+### Alerts
+
+With the `alerts` option (default on):
+
+- a toast the first time a window reaches a worse verdict, from `easy tiger` up (`burnrate · 5h hit the brakes`), shared across sessions;
+- a system notification when a window is projected to hit its limit within 30 minutes, or has hit it, once per window;
+- a toast recapping last week (`burnrate · last week peaked 62%, busiest Sat 10 at 40%`), once per closed week.
 
 Each window gets a verdict:
 
@@ -80,7 +97,8 @@ Quota change (7d only): the current and previous windows are compared with the m
 ## Data
 
 - The plugin store (`$.store`, key `history`): peaks per window, the percentage at each day start and hourly samples. Peaks and hourly samples are kept 49 days (enough for 6 past weeks), day starts 30 days.
-- `~/.claude/burnrate/cost/<sessionId>.json` (or under `$CLAUDE_CONFIG_DIR`): one file per session with its hourly cost, so concurrent sessions never write the same file. Buckets older than 49 days are dropped; files untouched for 49 days are ignored but stay on disk, since the plugin API cannot delete files.
+- The plugin store, keys `alerts` (worst verdict reached and notification per window, until the window resets) and `reportedWeek` (the last week recapped).
+- `~/.claude/burnrate/cost/<sessionId>.json` (or under `$CLAUDE_CONFIG_DIR`): one file per session with its hourly cost and project folder name, so concurrent sessions never write the same file. Buckets older than 49 days are dropped; files untouched for 49 days are ignored but stay on disk, since the plugin API cannot delete files.
 
 Nothing leaves your machine.
 
@@ -89,6 +107,7 @@ Nothing leaves your machine.
 - Dollars come from the sessions on this machine only. Usage from another computer, the web or the mobile app raises the percentage without any matching cost, so the $ per 1% and the quota size read low when you use several devices.
 - The percentage arrives with one decimal and moves in small steps, so quota size needs at least 5 points of gain before it shows, and short windows are noisy.
 - Projections need a few closed windows to stop being linear guesses.
+- Session and project costs count the hours that overlap the 7d window, so a session started in the hour before it opened is counted in full for that hour.
 
 ## Development
 

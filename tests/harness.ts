@@ -28,12 +28,30 @@ export function paneTarget(bodyColumns: number) {
   } as const
 }
 
-export function memoryFs(on: On, now: number, initial: Record<string, string> = {}): Map<string, string> {
+export type FakeMachine = { files: Map<string, string>; toasts: string[]; notices: string[] }
+
+export type SessionInfo = { model?: string; root?: string }
+
+export function memoryFs(on: On, now: number, initial: Record<string, string> = {}, session: SessionInfo = {}): FakeMachine {
   const files = new Map(Object.entries(initial))
+  const toasts: string[] = []
+  const notices: string[] = []
   const isDir = (path: string) => [...files.keys()].some(file => file.startsWith(`${path}/`))
 
   mock.env(on, { HOME: '/home/tester' })
   on('session.id', () => ({ value: SESSION }))
+  on('session.model', () => ({ value: session.model ?? 'claude-sonnet-5-5' }))
+  on('session.root', () => ({ value: session.root ?? '/home/tester/DEV/burnrate' }))
+  on('ui.toast', ($, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('ui.notify', ($, e) => {
+    notices.push(e.text)
+
+    return { value: { isSent: false, reason: 'no-surface' } }
+  })
   on('fs.exists', ($, e) => ({ value: files.has(e.path) || isDir(e.path) }))
   on('fs.read', ($, e) => ({ value: files.get(e.path) ?? '' }))
   on('fs.write', ($, e) => {
@@ -55,7 +73,7 @@ export function memoryFs(on: On, now: number, initial: Record<string, string> = 
   })
   on('session.measure', ($, e) => ({ changed: e.changed }))
 
-  return files
+  return { files, toasts, notices }
 }
 
 export function reading(kind: 'seven_day' | 'five_hour', percentUsed: number, resetsAt: number): BurnrateReading {

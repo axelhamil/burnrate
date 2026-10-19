@@ -115,7 +115,7 @@ describe('cost ledger', () => {
 
   test('given two sessions and a bucket older than 49 days, when merging, then recent hours add up and the old one is dropped', () => {
     const old = String(Math.floor(now / 3_600_000) - 50 * 24)
-    const merged = mergeCosts([{ lastUsd: 0, hours: { [hour]: 1, [old]: 9 } }, { lastUsd: 0, hours: { [hour]: 2 } }], now)
+    const merged = mergeCosts([{ hours: { [hour]: 1, [old]: 9 } }, { hours: { [hour]: 2 } }], now)
 
     expect(merged).toEqual({ [hour]: 3 })
   })

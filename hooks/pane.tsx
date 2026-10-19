@@ -210,6 +210,42 @@ function quotaLines({ Text }: Elements, { view, size }: WindowInsight): RenderEl
   return [quota, change]
 }
 
+function usdAndPct(usd: number, size: WindowInsight['size']): string {
+  if (size === null) return formatUsd(usd)
+
+  return `${formatUsd(usd)} (${formatPct(usd / size.usdPerPoint)})`
+}
+
+function spendLines({ Box, Text }: Elements, { spend, size }: WindowInsight): RenderElement[] {
+  if (spend === null || spend.projects.length === 0) return []
+
+  const session = <Text>This session {usdAndPct(spend.sessionUsd, size)}</Text>
+  const projects = spend.projects.map(project => (
+    <Box key={project.label} flexDirection="row" columnGap={1}>
+      <Text dimColor>{project.label}</Text>
+      <Text>{usdAndPct(project.usd, size)}</Text>
+    </Box>
+  ))
+
+  return [session, <Text dimColor>Top projects this week</Text>, ...projects]
+}
+
+function lastWeekLine({ Text }: Elements, { lastWeek }: WindowInsight): RenderElement | null {
+  if (lastWeek === null) return null
+
+  return (
+    <Text>
+      Last week peaked <Text {...toneProps(projectionTone(lastWeek.peak))}>{formatPct(lastWeek.peak)}</Text>
+      {lastWeek.busiest !== null && (
+        <Text dimColor>
+          {' '}
+          · busiest {formatDay(lastWeek.busiest.date)} at {formatPct(lastWeek.busiest.used)}
+        </Text>
+      )}
+    </Text>
+  )
+}
+
 function section(elements: Elements, insight: WindowInsight, today: string, layout: Layout): RenderElement {
   const { Box, Text } = elements
   const { view } = insight
@@ -230,6 +266,8 @@ function section(elements: Elements, insight: WindowInsight, today: string, layo
       {todayLine(elements, view, layout)}
       {daysBlock(elements, insight.days, today, layout)}
       {quotaLines(elements, insight)}
+      {spendLines(elements, insight)}
+      {lastWeekLine(elements, insight)}
     </Box>
   )
 }

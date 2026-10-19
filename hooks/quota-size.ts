@@ -152,11 +152,12 @@ export function parseLedger(text: string): BurnrateCostLedger | null {
   if (typeof lastUsd !== 'number' || typeof hours !== 'object' || hours === null) return null
 
   const valid = Object.entries(hours).filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+  const label = 'label' in parsed && typeof parsed.label === 'string' ? { label: parsed.label } : {}
 
-  return { lastUsd, hours: Object.fromEntries(valid) }
+  return { lastUsd, hours: Object.fromEntries(valid), ...label }
 }
 
-export function mergeCosts(ledgers: readonly BurnrateCostLedger[], now: number): Record<string, number> {
+export function mergeCosts(ledgers: readonly Pick<BurnrateCostLedger, 'hours'>[], now: number): Record<string, number> {
   const merged: Record<string, number> = {}
   for (const ledger of ledgers) {
     for (const [hour, usd] of Object.entries(recentHours(ledger.hours, now))) merged[hour] = (merged[hour] ?? 0) + usd

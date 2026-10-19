@@ -7,6 +7,11 @@ Today 14% of 14% ██████████                             Quot
 Sun 11 ██████████░░░░░░░░░░░░░░ 9%
 Mon 12 ████████████████████████ 21%
 Tue 13 ████████████████░░░░░░░░ 14% today
-Quota ≈ $200 / week (1% ≈ $2.00)
+Quota ≈ $260 / week (1% ≈ $2.60)
+This session $6.00 (2.3%)
+Top projects this week
+api $20 (7.7%)
+burnrate $6.00 (2.3%)
+Last week peaked 50%
 
 │ marks where an even pace would be now. $ are API-equivalent and count this machine only.
