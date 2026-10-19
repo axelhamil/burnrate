@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/axelhamil/burnrate/compare/v0.3.0...v0.3.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **band:** frame the band so it stands apart from the transcript ([#7](https://github.com/axelhamil/burnrate/issues/7)) ([94dda07](https://github.com/axelhamil/burnrate/commit/94dda07975a4d5149f31818c794e12d6ff8fb79a))
+
 ## [0.3.0](https://github.com/axelhamil/burnrate/compare/v0.2.0...v0.3.0) (2026-10-19)
 
 
