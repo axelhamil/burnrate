@@ -19,7 +19,7 @@
     "statusLine": {
       "type": "boolean",
       "title": "Status line",
-      "description": "Show a one-line quota summary under the prompt",
+      "description": "Show a one-line quota band above the prompt",
       "default": true
     }
   }

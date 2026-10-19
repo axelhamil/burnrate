@@ -18,7 +18,7 @@ Quota ≈ $200 / week (1% ≈ $2.00)
 │ marks where an even pace would be now. $ are API-equivalent and count this machine only.
 ```
 
-More states and widths (60, 90 and 140 columns) live in [docs/snapshots](docs/snapshots).
+More states and widths (60, 90 and 140 columns, `band-*` for the band) live in [docs/snapshots](docs/snapshots).
 
 ## Install
 
@@ -42,11 +42,11 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 `/burnrate` toggles the pane. It refreshes on every API response and once a minute.
 
-A one-line summary also shows under the prompt, for example `easy tiger · 7d end 96% · 12%/d · today 14/14% · ▃█▅ · 5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`) and ends the 7d part with one bar per day with a reading (the same days as the pane), scaled against the busiest day or the even pace, whichever is higher. Turn it off with the `statusLine` option (default on) in the plugin settings.
+A one-line band also shows right above the prompt, in color, for example `● easy tiger   7d → 77%   12%/d   today █████ 14/14%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), and from 82 columns adds a bar of today's budget and one bar per day with a reading (the same days as the pane), yellow above the even pace. Under 64 columns it drops today to stay on one line. Turn it off with the `statusLine` option (default on) in the plugin settings.
 
 Each window gets a verdict:
 
-| Verdict | Status line | When |
+| Verdict | Band | When |
 | --- | --- | --- |
 | Limit reached | tapped out | used is 100% |
 | Will hit the limit around ... | hit the brakes | projection above 100% |

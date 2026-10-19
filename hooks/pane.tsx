@@ -21,7 +21,7 @@ const TITLES: Record<WindowView['kind'], string> = { seven_day: '7-day window', 
 const UNITS: Record<WindowView['kind'], string> = { seven_day: 'day', five_hour: 'hour' }
 const PERIODS_LONG: Record<WindowView['kind'], string> = { seven_day: 'week', five_hour: 'window' }
 const PERIODS: Record<WindowView['kind'], string> = { seven_day: 'week', five_hour: '5h' }
-const VERDICT_COLORS: Record<Verdict, Color> = {
+export const VERDICT_COLORS: Record<Verdict, Color> = {
   room: 'success',
   on_track: 'text',
   ahead: 'warning',
@@ -38,7 +38,7 @@ function layoutFor(columns: number): Layout {
   }
 }
 
-function toneProps(tone: Tone): TextProps {
+export function toneProps(tone: Tone): TextProps {
   if (tone === 'alert') return { color: 'error' }
   if (tone === 'warn') return { color: 'warning' }
   if (tone === 'dim') return { dimColor: true }
@@ -135,7 +135,7 @@ function budgetLine({ Text }: Elements, { view, verdict }: WindowInsight, layout
   )
 }
 
-function smallBar({ Text }: Elements, ratio: number, width: number, tone: Tone): RenderElement {
+export function smallBar({ Text }: Elements, ratio: number, width: number, tone: Tone): RenderElement {
   const filled = Math.min(width, Math.round(Math.max(0, ratio) * width))
 
   return (

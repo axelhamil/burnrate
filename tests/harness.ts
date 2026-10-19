@@ -93,3 +93,28 @@ export async function texts($: Engine, bodyColumns = 48): Promise<string> {
 
   return all.map(element => element.text).join(' | ')
 }
+
+export function bandTarget(bodyColumns: number) {
+  return {
+    plugin: 'burnrate',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+  } as const
+}
+
+export async function bandText($: Engine, bodyColumns = 120): Promise<string> {
+  const ui = await $.ui.mount(bandTarget(bodyColumns))
+  const all = await ui.findAll({ type: 'Text' })
+  await ui.unmount()
+
+  return all.map(element => element.text).join(' | ')
+}
+
+export async function drawnBand($: Engine, bodyColumns: number): Promise<unknown> {
+  const ui = await $.ui.mount(bandTarget(bodyColumns))
+  const tree = await ui.drawn()
+  await ui.unmount()
+
+  return tree
+}
