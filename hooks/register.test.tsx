@@ -223,5 +223,5 @@ test('given a calm week but a 5h window about to run out, when a reading arrives
 
   await measure($, [reading('seven_day', 5, NOW + 3 * DAY_MS), reading('five_hour', 90, NOW + 2 * HOUR_MS)])
 
-  expect(await bandText($)).toStartWith('● hit the brakes')
+  expect(await bandText($)).toStartWith('▌ ● hit the brakes')
 })
