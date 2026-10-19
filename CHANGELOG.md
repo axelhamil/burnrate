@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/axelhamil/burnrate/compare/v0.1.0...v0.2.0) (2026-10-19)
+
+
+### Features
+
+* **statusline:** lead with a verdict word and a daily sparkline ([#3](https://github.com/axelhamil/burnrate/issues/3)) ([8167671](https://github.com/axelhamil/burnrate/commit/81676717cde0cfe47469bf7bdc4d94af65f6cacb))
+
 ## 0.1.0 (2026-10-17)
 
 
