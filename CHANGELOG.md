@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/axelhamil/burnrate/compare/v0.4.0...v0.4.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **band:** shrink the band to one row behind a verdict-colored bar ([#11](https://github.com/axelhamil/burnrate/issues/11)) ([43ca396](https://github.com/axelhamil/burnrate/commit/43ca396888eea690663d12c309ca171b44e48435))
+
 ## [0.4.0](https://github.com/axelhamil/burnrate/compare/v0.3.1...v0.4.0) (2026-10-19)
 
 
