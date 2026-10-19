@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/axelhamil/burnrate/compare/v0.4.1...v0.5.0) (2026-10-19)
+
+
+### Features
+
+* **band:** clickable figures and audit fixes ([#13](https://github.com/axelhamil/burnrate/issues/13)) ([e6bb84d](https://github.com/axelhamil/burnrate/commit/e6bb84dbd601f763d61ff759c3d8e09a1d13e258))
+
 ## [0.4.1](https://github.com/axelhamil/burnrate/compare/v0.4.0...v0.4.1) (2026-10-19)
 
 
