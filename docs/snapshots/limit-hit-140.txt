@@ -11,5 +11,6 @@ Wed 14 █████████████████████░░░ 
 Thu 15 ████████████████████░░░░ 15%
 Fri 16 █████████████████░░░░░░░ 13% today
 Quota size: learning (needs 5 points)
+Last week peaked 60%
 
 │ marks where an even pace would be now. $ are API-equivalent and count this machine only.

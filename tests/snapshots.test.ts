@@ -13,6 +13,8 @@ type Scenario = {
   history: BurnrateHistory
   costFiles: Record<string, string>
   readings: BurnrateReading[]
+  model?: string
+  usd?: number
 }
 
 declare const console: { log: (text: string) => void }
@@ -67,7 +69,7 @@ function freshWeek(): Scenario {
 function midWeekAhead(): Scenario {
   const now = new Date(2026, 9, 13, 15, 0, 0).getTime()
   const nowHour = Math.floor(now / HOUR_MS)
-  const otherSession = JSON.stringify({ lastUsd: 20, hours: { [nowHour - 2]: 8, [nowHour - 1]: 7, [nowHour]: 5 } })
+  const otherSession = JSON.stringify({ lastUsd: 20, hours: { [nowHour - 2]: 8, [nowHour - 1]: 7, [nowHour]: 5 }, label: 'api' })
 
   return {
     name: 'mid-week-ahead',
@@ -83,6 +85,7 @@ function midWeekAhead(): Scenario {
     },
     costFiles: { [`${COST_DIR}/session-b.json`]: otherSession },
     readings: [reading('seven_day', 44, WEEK_RESET), reading('five_hour', 45, now + 130 * MIN_MS)],
+    usd: 6,
   }
 }
 
@@ -131,15 +134,17 @@ function busiestBand(): Scenario {
     },
     costFiles: {},
     readings: [reading('seven_day', 96, WEEK_RESET), reading('five_hour', 90, now + 2 * HOUR_MS)],
+    model: 'claude-opus-5-5',
+    usd: 12.5,
   }
 }
 
 async function measured($: Engine, on: On, scenario: Scenario): Promise<void> {
   mock.store(on, { history: scenario.history })
   mock.clock(on, { now: scenario.now })
-  memoryFs(on, scenario.now, scenario.costFiles)
+  memoryFs(on, scenario.now, scenario.costFiles, { model: scenario.model })
 
-  await measure($, scenario.readings)
+  await measure($, scenario.readings, scenario.usd)
 }
 
 for (const scenario of [freshWeek(), midWeekAhead(), limitHit()]) {

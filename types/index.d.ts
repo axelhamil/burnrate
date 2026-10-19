@@ -32,12 +32,24 @@ export type BurnrateHistory = {
 export type BurnrateCostLedger = {
   lastUsd: number
   hours: Record<string, number>
+  label?: string
 }
+
+export type BurnrateSessionCost = {
+  id: string
+  label: string
+  hours: Record<string, number>
+}
+
+export type BurnrateAlertState = Record<string, { verdict: string; notified: boolean }>
 
 export type BurnrateSnapshot = {
   readings: BurnrateReading[]
   history: BurnrateHistory
   costs: Record<string, number>
+  sessions: BurnrateSessionCost[]
+  sessionId: string
+  model: string
   now: number
 }
 

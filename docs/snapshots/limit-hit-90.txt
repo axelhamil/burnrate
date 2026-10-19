@@ -11,6 +11,7 @@ Wed 14 █████████████████████░░░ 
 Thu 15 ████████████████████░░░░ 15%
 Fri 16 █████████████████░░░░░░░ 13% today
 Quota size: learning (needs 5 points)
+Last week peaked 60%
 
 5-hour window · Limit reached
 ███████████████████████████████████│████████████ 100%

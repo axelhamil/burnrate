@@ -32,11 +32,11 @@ test('given four closed weeks peaking at 60, when a 7d reading of 14% with 6.2 d
 test('given a session whose cost grows from $1 to $3, when measured twice, then its own file holds $3 in this hour', async ($, on) => {
   mock.store(on)
   mock.clock(on, { now: NOW })
-  const files = memoryFs(on, NOW)
+  const { files } = memoryFs(on, NOW)
 
   for (const usd of [1, 3]) await measure($, [], usd)
 
-  expect(JSON.parse(files.get(`${COST_DIR}/${SESSION}.json`) ?? '{}')).toEqual({ lastUsd: 3, hours: { [NOW_HOUR]: 3 } })
+  expect(JSON.parse(files.get(`${COST_DIR}/${SESSION}.json`) ?? '{}')).toEqual({ lastUsd: 3, hours: { [NOW_HOUR]: 3 }, label: 'burnrate' })
 })
 
 test('given another session spent $20 while 7d rose 10 points, when the pane draws, then 1% is about $2 and the week about $200', async ($, on) => {
@@ -53,6 +53,130 @@ test('given another session spent $20 while 7d rose 10 points, when the pane dra
 
   expect(drawn).toContain('1% ≈ $2.00')
   expect(drawn).toContain('Quota ≈ $200 / week')
+})
+
+test('given this session spent $4 before the quota size is known, when the band draws, then it shows the session in dollars', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW)
+
+  await measure($, [reading('seven_day', 14, NOW + 3 * DAY_MS)], 4)
+
+  expect(await bandText($)).toContain('session $4.00')
+})
+
+test('given sessions in two projects this week, when the pane draws, then projects are ranked by spend', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const other = JSON.stringify({ lastUsd: 20, hours: { [NOW_HOUR - 1]: 20 }, label: 'api' })
+  memoryFs(on, NOW, { [`${COST_DIR}/session-b.json`]: other })
+
+  await measure($, [reading('seven_day', 14, NOW + 3 * DAY_MS)], 4)
+  const drawn = await texts($, 60)
+
+  expect(drawn).toContain('This session $4.00')
+  expect(drawn.indexOf('api | $20')).toBeLessThan(drawn.indexOf('burnrate | $4.00'))
+})
+
+test('given a 5h window that was on track, when a reading puts it on course to hit the limit, then one toast says so', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const { toasts } = memoryFs(on, NOW)
+
+  await measure($, [reading('five_hour', 30, NOW + 2 * HOUR_MS)])
+  for (const pct of [70, 71]) await measure($, [reading('five_hour', pct, NOW + 2 * HOUR_MS)])
+
+  expect(toasts).toEqual(['burnrate · 5h hit the brakes'])
+})
+
+test('given a 5h window hitting the limit within 30 minutes, when measured twice, then one notification warns', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const { notices } = memoryFs(on, NOW)
+
+  for (const pct of [90, 91]) await measure($, [reading('five_hour', pct, NOW + 2 * HOUR_MS)])
+
+  expect(notices).toHaveLength(1)
+  expect(notices[0]).toStartWith('5h limit around ')
+})
+
+test('given the alerts option is off, when a window is about to hit the limit, then nothing pops up', { options: { alerts: false } }, async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const { toasts, notices } = memoryFs(on, NOW)
+
+  await measure($, [reading('five_hour', 90, NOW + 2 * HOUR_MS)])
+
+  expect([...toasts, ...notices]).toEqual([])
+})
+
+test('given a session with no reading yet in between, when the 5h window stays on course to hit the limit, then it is not toasted again', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const { toasts } = memoryFs(on, NOW)
+
+  await measure($, [reading('five_hour', 70, NOW + 2 * HOUR_MS)])
+  await measure($, [])
+  await measure($, [reading('five_hour', 71, NOW + 2 * HOUR_MS)])
+
+  expect(toasts).toEqual(['burnrate · 5h hit the brakes'])
+})
+
+test('given a session already filed under a project, when its folder changes, then its cost stays under that project', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const ledger = JSON.stringify({ lastUsd: 1, hours: { [NOW_HOUR]: 1 }, label: 'api' })
+  const { files } = memoryFs(on, NOW, { [`${COST_DIR}/${SESSION}.json`]: ledger }, { root: '/home/tester/elsewhere' })
+
+  await measure($, [], 3)
+
+  expect(JSON.parse(files.get(`${COST_DIR}/${SESSION}.json`) ?? '{}')).toEqual({ lastUsd: 3, hours: { [NOW_HOUR]: 3 }, label: 'api' })
+})
+
+test('given a 7d window with room to spare, when its pace becomes merely on track, then no toast pops up', async ($, on) => {
+  mock.store(on, { alerts: { [windowKey('seven_day', NOW + 3 * DAY_MS)]: { verdict: 'room', notified: false } } })
+  mock.clock(on, { now: NOW })
+  const { toasts } = memoryFs(on, NOW)
+
+  await measure($, [reading('seven_day', 50, NOW + 3 * DAY_MS)])
+
+  expect(toasts).toEqual([])
+})
+
+test('given Opus on a window about to hit the limit, when the band draws, then it advises Sonnet', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW, {}, { model: 'claude-opus-5-5' })
+
+  await measure($, [reading('five_hour', 90, NOW + 2 * HOUR_MS)])
+
+  expect(await bandText($)).toContain('try sonnet')
+})
+
+test('given Opus on a calm week, when the band draws, then it gives no model advice', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW, {}, { model: 'claude-opus-5-5' })
+
+  await measure($, [reading('seven_day', 5, NOW + 3 * DAY_MS)])
+
+  expect(await bandText($)).not.toContain('try sonnet')
+})
+
+test('given a week closed 4 days ago at 62%, when measured twice, then the pane recaps it and one toast reports it', async ($, on) => {
+  const resetsAt = NOW + 3 * DAY_MS
+  const closedAt = resetsAt - 7 * DAY_MS
+  const key = windowKey('seven_day', closedAt)
+  const start = (date: string, pct: number, seenAt: number) => [`${key}#${date}`, { windowKey: key, date, pct, seenAt }] as const
+  const dayStarts = Object.fromEntries([start('2026-10-10', 0, closedAt - 3 * DAY_MS), start('2026-10-11', 40, closedAt - 2 * DAY_MS)])
+  mock.store(on, { history: { peaks: closedWeekPeaks([62], resetsAt), dayStarts, hours: {} } })
+  mock.clock(on, { now: NOW })
+  const { toasts } = memoryFs(on, NOW)
+
+  for (const pct of [14, 15]) await measure($, [reading('seven_day', pct, resetsAt)])
+
+  expect(await texts($, 60)).toContain('Last week peaked 62% · busiest Sat 10 at 40%')
+  expect(toasts).toEqual(['burnrate · last week peaked 62%, busiest Sat 10 at 40%'])
 })
 
 async function bandAfterReading($: Engine, on: On): Promise<string> {

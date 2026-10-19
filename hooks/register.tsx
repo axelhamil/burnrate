@@ -1,8 +1,9 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { BurnrateCostLedger, BurnrateHistory, BurnrateReading, BurnrateSnapshot } from '../types'
+import type { BurnrateCostLedger, BurnrateHistory, BurnrateReading, BurnrateSessionCost, BurnrateSnapshot } from '../types'
+import { alertsFor, parseAlertState, reportText } from './alerts'
 import { bandTree } from './band'
-import { insightsOf } from './insight'
+import { insightsOf, type WindowInsight } from './insight'
 import { EMPTY_HISTORY, localDate, parseHistory, recordReadings } from './pace'
 import { paneTree, type Elements } from './pane'
 import { mergeCosts, parseLedger, recordCost } from './quota-size'
@@ -10,9 +11,23 @@ import { mergeCosts, parseLedger, recordCost } from './quota-size'
 const PANE = 'burnrate'
 const STORE_KEY = 'history'
 const LAST_READINGS_KEY = 'lastReadings'
+const ALERTS_KEY = 'alerts'
+const REPORTED_WEEK_KEY = 'reportedWeek'
+const UNLABELED = 'other'
+const ALERT_TOAST_MS = 8_000
 const TICK_MS = 60_000
 const COST_RETENTION_MS = 49 * 86_400_000
-const EMPTY_SNAPSHOT: BurnrateSnapshot = { readings: [], history: EMPTY_HISTORY, costs: {}, now: 0 }
+const EMPTY_SNAPSHOT: BurnrateSnapshot = {
+  readings: [],
+  history: EMPTY_HISTORY,
+  costs: {},
+  sessions: [],
+  sessionId: '',
+  model: '',
+  now: 0,
+}
+
+type Settings = { isAlertsOn: boolean }
 
 const snapshot = { plugin: 'burnrate', key: 'snapshot' } as const
 
@@ -38,28 +53,40 @@ async function readLedger($: EngineInterface, path: string): Promise<BurnrateCos
   return parseLedger(await $.fs.read(path))
 }
 
-async function recordSessionCost($: EngineInterface, dir: string, usd: number, now: number): Promise<void> {
-  const path = `${dir}/${await $.session.id()}.json`
+async function sessionLabel($: EngineInterface): Promise<string> {
+  const root = await $.session.root()
+
+  return root.split('/').filter(Boolean).at(-1) ?? UNLABELED
+}
+
+async function recordSessionCost($: EngineInterface, dir: string, sessionId: string, usd: number, now: number): Promise<void> {
+  const path = `${dir}/${sessionId}.json`
   const ledger = await readLedger($, path)
-  const recorded = recordCost(ledger, usd, now)
+  const recorded = { ...recordCost(ledger, usd, now), label: ledger?.label ?? (await sessionLabel($)) }
   if (ledger !== null && JSON.stringify(ledger) === JSON.stringify(recorded)) return
 
   await $.fs.write(path, JSON.stringify(recorded))
 }
 
-async function loadCosts($: EngineInterface, dir: string, now: number): Promise<Record<string, number>> {
-  if (!(await $.fs.exists(dir))) return {}
+async function loadSessions($: EngineInterface, dir: string, now: number): Promise<BurnrateSessionCost[]> {
+  if (!(await $.fs.exists(dir))) return []
 
   const entries = await $.fs.list(dir)
   const recent = entries.filter(
     entry => entry.kind === 'file' && entry.name.endsWith('.json') && entry.mtimeMs >= now - COST_RETENTION_MS,
   )
-  const ledgers = await Promise.all(recent.map(entry => readLedger($, `${dir}/${entry.name}`)))
+  const ledgers = await Promise.all(
+    recent.map(async entry => {
+      const ledger = await readLedger($, `${dir}/${entry.name}`)
+      if (ledger === null) return []
 
-  return mergeCosts(
-    ledgers.flatMap(ledger => (ledger === null ? [] : [ledger])),
-    now,
+      const id = entry.name.slice(0, -'.json'.length)
+
+      return [{ id, label: ledger.label ?? UNLABELED, hours: ledger.hours }]
+    }),
   )
+
+  return ledgers.flat()
 }
 
 function stateOf(value: BurnrateSnapshot | undefined): BurnrateSnapshot {
@@ -88,8 +115,24 @@ async function recordedHistory(
   return history
 }
 
+async function raiseAlerts($: EngineInterface, insights: readonly WindowInsight[], now: number): Promise<void> {
+  const previous = parseAlertState(await $.store.get(ALERTS_KEY))
+  const { toasts, notices, state } = alertsFor(insights, previous, now)
+  if (JSON.stringify(state) !== JSON.stringify(previous)) await $.store.set(ALERTS_KEY, state)
+
+  for (const text of toasts) $.ui.toast(text, { timeoutMs: ALERT_TOAST_MS })
+  for (const text of notices) await $.ui.notify(text, { title: 'burnrate' }).catch(() => undefined)
+
+  const report = insights.find(insight => insight.lastWeek !== null)?.lastWeek
+  if (report === undefined || report === null || (await $.store.get(REPORTED_WEEK_KEY)) === report.key) return
+
+  await $.store.set(REPORTED_WEEK_KEY, report.key)
+  $.ui.toast(reportText(report), { timeoutMs: ALERT_TOAST_MS })
+}
+
 async function refresh(
   $: EngineInterface,
+  settings: Settings,
   rateLimits: readonly BurnrateReading[],
   usd: number | undefined,
   isFresh: boolean,
@@ -99,18 +142,23 @@ async function refresh(
   const history = await recordedHistory($, readings, now, isFresh)
 
   const dir = await costDir($)
-  if (usd !== undefined) await recordSessionCost($, dir, usd, now)
+  const sessionId = await $.session.id()
+  if (usd !== undefined) await recordSessionCost($, dir, sessionId, usd, now)
 
-  const costs = await loadCosts($, dir, now)
-  const next: BurnrateSnapshot = { readings, history, costs, now }
+  const sessions = await loadSessions($, dir, now)
+  const costs = mergeCosts(sessions, now)
+  const model = await $.session.model()
+  const next: BurnrateSnapshot = { readings, history, costs, sessions, sessionId, model, now }
   await $.state.set(snapshot, next)
+
+  if (settings.isAlertsOn) await raiseAlerts($, insightsOf(next), now)
 }
 
-function ensureTicker($: EngineInterface): void {
+function ensureTicker($: EngineInterface, settings: Settings): void {
   if (ticker !== undefined) return
 
   ticker = $.clock.every(TICK_MS, () => {
-    void $.session.usage().then(usage => refresh($, usage.rateLimits, usage.cost?.usd, false))
+    void $.session.usage().then(usage => refresh($, settings, usage.rateLimits, usage.cost?.usd, false))
   })
 }
 
@@ -124,27 +172,28 @@ async function togglePane($: EngineInterface): Promise<void> {
 
 export const register: Register = (on, options) => {
   const isBandOn = options.statusLine !== false
+  const settings: Settings = { isAlertsOn: options.alerts !== false }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'burnrate', description: 'Toggle the burnrate quota pane', immediate: true })
     const usage = await $.session.usage()
-    await refresh($, usage.rateLimits, usage.cost?.usd, false)
-    ensureTicker($)
+    await refresh($, settings, usage.rateLimits, usage.cost?.usd, false)
+    ensureTicker($, settings)
 
     return next(e)
   })
 
   on('command.run', { command: 'burnrate' }, async $ => {
-    ensureTicker($)
+    ensureTicker($, settings)
     await togglePane($)
 
     return {}
   })
 
   on('session.measure', async ($, e, next) => {
-    ensureTicker($)
+    ensureTicker($, settings)
     const isFresh = e.changed.includes('rateLimits')
-    if (isFresh || e.changed.includes('cost')) await refresh($, e.rateLimits, e.cost?.usd, isFresh)
+    if (isFresh || e.changed.includes('cost')) await refresh($, settings, e.rateLimits, e.cost?.usd, isFresh)
 
     return next(e)
   })
@@ -163,7 +212,8 @@ export const register: Register = (on, options) => {
 
     const { Box, Text } = $.ui.resolve(e)
     const { value } = await $.state.get(snapshot)
-    const tree = bandTree({ Box, Text }, insightsOf(stateOf(value)), e.props.bodyColumns)
+    const state = stateOf(value)
+    const tree = bandTree({ Box, Text }, insightsOf(state), e.props.bodyColumns, state.model)
 
     return tree ?? next(e)
   })
