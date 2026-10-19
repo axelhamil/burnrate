@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { WindowRatio } from './quota-size'
-import { detectQuotaChange, mergeCosts, recordCost, windowRatio, windowRatios } from './quota-size'
+import { detectQuotaChange, mergeCosts, parseLedger, quotaUsdPerPoint, recordCost, windowRatio, windowRatios } from './quota-size'
 
 const KEY = 'seven_day@1800000000000'
 
@@ -26,6 +26,10 @@ describe('dollars per point', () => {
 
     expect(result?.usd).toBe(20)
     expect(result?.usdPerPoint).toBeNull()
+  })
+
+  test('given 6 points gained without any recorded spend, when measuring the window, then there is no ratio', () => {
+    expect(windowRatio(KEY, samples([[10, 4], [11, 10]]), {})?.usdPerPoint).toBeNull()
   })
 
   test('given an hour where the percentage dropped, when measuring the window, then its spend is left out', () => {
@@ -84,8 +88,14 @@ describe('quota change', () => {
     expect(detectQuotaChange(ratios, 'seven_day@5')).toEqual({ direction: 'down', percent: 40 })
   })
 
-  test('given a deviation under 20%, when comparing, then nothing is reported', () => {
-    const ratios = [...usual, ratio(4, 2.3), ratio(5, 2.3)]
+  test('given the current and previous windows costing 25% more per point, when comparing, then the quota is up 25%', () => {
+    const ratios = [...usual, ratio(4, 2.5), ratio(5, 2.5)]
+
+    expect(detectQuotaChange(ratios, 'seven_day@5')).toEqual({ direction: 'up', percent: 25 })
+  })
+
+  test('given a deviation of exactly 20%, when comparing, then nothing is reported', () => {
+    const ratios = [...usual, ratio(4, 2.4), ratio(5, 2.4)]
 
     expect(detectQuotaChange(ratios, 'seven_day@5')).toBeNull()
   })
@@ -103,6 +113,14 @@ describe('quota change', () => {
   })
 })
 
+describe('quota size', () => {
+  test('given the current window under 5 points, when sizing the quota, then the latest closed window with a ratio is used', () => {
+    const ratios = [ratio(1, 2), ratio(2, 3), ratio(3, null), ratio(4, null)]
+
+    expect(quotaUsdPerPoint(ratios, 'seven_day@4')).toBe(3)
+  })
+})
+
 describe('cost ledger', () => {
   const now = Date.UTC(2026, 9, 17, 12, 0, 0)
   const hour = String(Math.floor(now / 3_600_000))
@@ -111,6 +129,19 @@ describe('cost ledger', () => {
     const ledger = recordCost({ lastUsd: 8, hours: { [hour]: 8 } }, 2, now)
 
     expect(ledger).toEqual({ lastUsd: 2, hours: { [hour]: 8 } })
+  })
+
+  test('given a bucket older than 49 days, when recording, then it is dropped', () => {
+    const old = String(Math.floor(now / 3_600_000) - 50 * 24)
+    const ledger = recordCost({ lastUsd: 1, hours: { [old]: 1, [hour]: 1 } }, 1, now)
+
+    expect(ledger.hours).toEqual({ [hour]: 1 })
+  })
+
+  test('given a ledger with a text total, no hours or a text bucket, when parsing, then the bad parts are rejected', () => {
+    expect(parseLedger(JSON.stringify({ lastUsd: '3', hours: {} }))).toBeNull()
+    expect(parseLedger(JSON.stringify({ lastUsd: 3, hours: null }))).toBeNull()
+    expect(parseLedger(JSON.stringify({ lastUsd: 3, hours: { 1: 2, 2: 'x' } }))).toEqual({ lastUsd: 3, hours: { 1: 2 } })
   })
 
   test('given two sessions and a bucket older than 49 days, when merging, then recent hours add up and the old one is dropped', () => {

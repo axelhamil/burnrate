@@ -3,11 +3,8 @@ import type { Engine } from 'claude-code/testing'
 import { mock } from 'claude-code/testing'
 
 import type { BurnrateReading } from '../types'
-import { windowKey } from '../hooks/pace'
+import { WEEK_MS, windowKey } from '../hooks/pace'
 
-export const DAY_MS = 86_400_000
-export const HOUR_MS = 3_600_000
-export const WEEK_MS = 7 * DAY_MS
 export const COST_DIR = '/home/tester/.claude/burnrate/cost'
 export const SESSION = 'session-a'
 
@@ -30,7 +27,7 @@ export function paneTarget(bodyColumns: number) {
 
 export type FakeMachine = { files: Map<string, string>; toasts: string[]; notices: string[] }
 
-export type SessionInfo = { model?: string; root?: string }
+export type SessionInfo = { model?: string; root?: string; mtimes?: Record<string, number>; failedNotices?: number }
 
 export function memoryFs(on: On, now: number, initial: Record<string, string> = {}, session: SessionInfo = {}): FakeMachine {
   const files = new Map(Object.entries(initial))
@@ -49,6 +46,7 @@ export function memoryFs(on: On, now: number, initial: Record<string, string> = 
   })
   on('ui.notify', ($, e) => {
     notices.push(e.text)
+    if (notices.length <= (session.failedNotices ?? 0)) return { deny: 'notification failed' }
 
     return { value: { isSent: false, reason: 'no-surface' } }
   })
@@ -65,7 +63,7 @@ export function memoryFs(on: On, now: number, initial: Record<string, string> = 
       name: file.slice(e.path.length + 1),
       kind: 'file' as const,
       size: 1,
-      mtimeMs: now,
+      mtimeMs: session.mtimes?.[file] ?? now,
       isLink: false,
     }))
 
@@ -112,12 +110,12 @@ export async function texts($: Engine, bodyColumns = 48): Promise<string> {
   return all.map(element => element.text).join(' | ')
 }
 
-export function bandTarget(bodyColumns: number) {
+export function bandTarget(bodyColumns: number, hasSurvey = false) {
   return {
     plugin: 'burnrate',
     surface: 'terminal',
     component: 'AbovePrompt',
-    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+    props: { hasSurvey, isWorking: false, maxRows: 10, bodyColumns, scroll: { offset: 0, bodyRows: 10 }, view: {} },
   } as const
 }
 

@@ -6,6 +6,7 @@ import {
   dailyUsage,
   describeWindow,
   EMPTY_HISTORY,
+  HOUR_MS,
   outlookFor,
   parseHistory,
   projectAtReset,
@@ -16,7 +17,6 @@ import {
 
 const DAY = 86_400
 const WEEK = 7 * DAY
-const HOUR_MS = 3_600_000
 const NOW = Date.UTC(2026, 9, 17, 12, 0, 0)
 
 function weekReading(percentUsed: number, resetsAtMs: number) {
@@ -47,8 +47,16 @@ describe('projection at reset', () => {
     expect(projectAtReset({ pct: 3, secondsLeft: 6.9 * DAY, windowSeconds: WEEK, outlook: null })).toBeNull()
   })
 
+  test('given exactly 10% of the window elapsed, when projecting without history, then the linear projection shows', () => {
+    const projected = projectAtReset({ pct: 9, secondsLeft: 0.9 * WEEK, windowSeconds: WEEK, outlook: null })
+
+    expect(Math.round(projected ?? 0)).toBe(90)
+  })
+
   test('given a typical peak of 60 and 14% used with 6.2 days left, when projecting, then it blends to 73', () => {
-    expect(projectAtReset({ pct: 14, secondsLeft: 6.2 * DAY, windowSeconds: WEEK, outlook: { typical: 60, remaining: null, traced: 0 } })).toBe(73)
+    const projected = projectAtReset({ pct: 14, secondsLeft: 6.2 * DAY, windowSeconds: WEEK, outlook: { typical: 60, remaining: null, traced: 0 } })
+
+    expect(Math.round(projected ?? 0)).toBe(73)
   })
 
   test('given a typical peak of 80 at the window start, when projecting, then it is the typical peak', () => {
@@ -56,7 +64,9 @@ describe('projection at reset', () => {
   })
 
   test('given 90% used with a minute left, when projecting, then it stays at the current use', () => {
-    expect(projectAtReset({ pct: 90, secondsLeft: 60, windowSeconds: WEEK, outlook: { typical: 40, remaining: null, traced: 0 } })).toBe(90)
+    const projected = projectAtReset({ pct: 90, secondsLeft: 60, windowSeconds: WEEK, outlook: { typical: 40, remaining: null, traced: 0 } })
+
+    expect(Math.round(projected ?? 0)).toBe(90)
   })
 
   test('given 70% used at half week and a typical peak of 60, when projecting, then it reaches 120', () => {
@@ -69,7 +79,15 @@ describe('outlook from history', () => {
     const resetsAt = NOW + 3 * DAY * 1_000
     const history = closedWeeks([60, 60, 60, 60, 60, 60, 0], resetsAt)
 
-    expect(Math.round(outlookFor(history, 'seven_day', resetsAt, 4 * DAY)?.typical ?? 0)).toBe(60)
+    expect(Math.round(outlookFor(history, 'seven_day', resetsAt, NOW, 4 * DAY)?.typical ?? 0)).toBe(60)
+  })
+
+  test('given a peak under a reset time that moved but is still ahead, when building the outlook, then it does not count as a closed week', () => {
+    const resetsAt = NOW + 3 * DAY * 1_000
+    const moved = resetsAt - DAY * 1_000
+    const history = { ...EMPTY_HISTORY, peaks: { [windowKey('seven_day', moved)]: { kind: 'seven_day', resetsAt: moved, peak: 90 } } }
+
+    expect(outlookFor(history, 'seven_day', resetsAt, NOW, 4 * DAY)).toBeNull()
   })
 
   test('given two closed weeks with hourly samples around this offset, when building the outlook, then the remaining use is interpolated', () => {
@@ -86,7 +104,7 @@ describe('outlook from history', () => {
     })
     const traced = { ...history, hours: Object.fromEntries(hours.map(sample => [`${sample.windowKey}#${sample.hour}`, sample])) }
 
-    expect(outlookFor(traced, 'seven_day', resetsAt, 11 * 3_600)?.remaining).toBe(70)
+    expect(outlookFor(traced, 'seven_day', resetsAt, NOW, 11 * 3_600)?.remaining).toBe(70)
   })
 
   test('given a peak and an hourly sample 45 days old, when recording, then both are kept for the outlook', () => {
@@ -131,6 +149,28 @@ describe('recording readings', () => {
     ])
   })
 
+  test('given a week left at 30% yesterday, when today opens on a risen reading, then today starts from yesterday\'s peak', () => {
+    const resetsAt = NOW + 3 * DAY * 1_000
+    const yesterday = recordReadings(EMPTY_HISTORY, [weekReading(30, resetsAt)], NOW - DAY * 1_000, '2026-10-16')
+    const today = recordReadings(yesterday, [weekReading(45, resetsAt)], NOW, '2026-10-17')
+
+    expect(today.dayStarts[`${windowKey('seven_day', resetsAt)}#2026-10-17`]?.pct).toBe(30)
+  })
+
+  test('given a week last read 3 days ago at 10%, when today opens at 60%, then today starts from the reading, not that old peak', () => {
+    const resetsAt = NOW + 3 * DAY * 1_000
+    const before = recordReadings(EMPTY_HISTORY, [weekReading(10, resetsAt)], NOW - 3 * DAY * 1_000, '2026-10-14')
+    const today = recordReadings(before, [weekReading(60, resetsAt)], NOW, '2026-10-17')
+
+    expect(today.dayStarts[`${windowKey('seven_day', resetsAt)}#2026-10-17`]?.pct).toBe(60)
+  })
+
+  test('given 5h readings, when recording, then no day start is stamped', () => {
+    const recorded = recordReadings(EMPTY_HISTORY, [{ ...weekReading(20, NOW + HOUR_MS), kind: 'five_hour' }], NOW, '2026-10-17')
+
+    expect(recorded.dayStarts).toEqual({})
+  })
+
   test('given readings in one hour then the next, when recording, then each hour keeps its max', () => {
     const resetsAt = NOW + 3 * DAY * 1_000
     const hourStart = Math.floor(NOW / HOUR_MS) * HOUR_MS
@@ -167,6 +207,16 @@ describe('recording readings', () => {
 
     expect(parsed).toEqual(EMPTY_HISTORY)
   })
+
+  test('given entries whose numbers are text or whose map is an array, when parsing, then they are dropped', () => {
+    const parsed = parseHistory({
+      peaks: [{ kind: 'seven_day', resetsAt: 1, peak: 2 }],
+      dayStarts: { a: { windowKey: 'w', date: '2026-10-17', pct: 1, seenAt: '1' } },
+      hours: { a: { windowKey: 'w', hour: '1', pct: 1 } },
+    })
+
+    expect(parsed).toEqual(EMPTY_HISTORY)
+  })
 })
 
 describe('window view', () => {
@@ -194,19 +244,16 @@ describe('budget left', () => {
 
 describe('daily usage', () => {
   test('given three day starts, when listing days, then each day is the gap to the next start', () => {
-    const resetsAt = NOW + 3 * DAY * 1_000
+    const key = windowKey('seven_day', NOW + 3 * DAY * 1_000)
     const days: Array<[number, string]> = [
       [10, '2026-10-15'],
       [25, '2026-10-16'],
       [31, '2026-10-17'],
     ]
-    const history = days.reduce(
-      (current, [pct, date], index) =>
-        recordReadings(current, [weekReading(pct, resetsAt)], NOW - (2 - index) * DAY * 1_000, date),
-      EMPTY_HISTORY,
-    )
+    const starts = days.map(([pct, date], index) => [`${key}#${date}`, { windowKey: key, date, pct, seenAt: NOW - (2 - index) * DAY * 1_000 }])
+    const history = { ...EMPTY_HISTORY, dayStarts: Object.fromEntries(starts) }
 
-    expect(dailyUsage(history, windowKey('seven_day', resetsAt), 40)).toEqual([
+    expect(dailyUsage(history, key, 40)).toEqual([
       { date: '2026-10-15', used: 15 },
       { date: '2026-10-16', used: 6 },
       { date: '2026-10-17', used: 9 },

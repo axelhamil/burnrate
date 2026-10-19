@@ -67,6 +67,7 @@ function block(node: unknown): Line[] {
   if (Array.isArray(node)) return node.flatMap(child => block(child))
   if (!isRecord(node)) return []
   if (node.type === 'Text') return [inline(node, {})]
+  if (node.type === 'Button') return childrenOf(node).flatMap(child => block(child))
   if (node.type !== 'Box') return []
 
   const props = propsOf(node)

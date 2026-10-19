@@ -1,7 +1,7 @@
 import type { BurnrateCostLedger, BurnrateHourSample } from '../types'
-import { isWindowKind, WINDOW_SECONDS } from './pace'
+import { HOUR_MS, isWindowKind, resetsAtOfKey, RETENTION_MS, WINDOW_SECONDS } from './pace'
 
-export type HourlyCosts = Readonly<Record<string, number>>
+type HourlyCosts = Readonly<Record<string, number>>
 
 export type WindowRatio = {
   windowKey: string
@@ -13,8 +13,7 @@ export type WindowRatio = {
 
 export type QuotaChange = { direction: 'up' | 'down'; percent: number }
 
-const HOUR_MS = 3_600_000
-const RETENTION_HOURS = 49 * 24
+const RETENTION_HOURS = RETENTION_MS / HOUR_MS
 const MIN_POINTS = 5
 const CHANGE_THRESHOLD = 0.2
 const MIN_CLOSED_WINDOWS = 2
@@ -26,14 +25,8 @@ function costBetween(costs: HourlyCosts, fromHourExclusive: number, toHourInclus
   return total
 }
 
-function resetsAtOf(windowKey: string): number | null {
-  const resetsAt = Number(windowKey.split('@')[1])
-
-  return Number.isFinite(resetsAt) ? resetsAt : null
-}
-
 export function windowRatio(windowKey: string, samples: readonly BurnrateHourSample[], costs: HourlyCosts): WindowRatio | null {
-  const resetsAt = resetsAtOf(windowKey)
+  const resetsAt = resetsAtOfKey(windowKey)
   if (resetsAt === null) return null
 
   const ordered = [...samples].sort((a, b) => a.hour - b.hour)
@@ -48,7 +41,7 @@ export function windowRatio(windowKey: string, samples: readonly BurnrateHourSam
   })
   const points = moves.reduce((sum, move) => sum + move.gained, 0)
   const usd = moves.reduce((sum, move) => sum + move.usd, 0)
-  const usdPerPoint = points >= MIN_POINTS ? usd / points : null
+  const usdPerPoint = points >= MIN_POINTS && usd > 0 ? usd / points : null
 
   return { windowKey, resetsAt, usd, points, usdPerPoint }
 }

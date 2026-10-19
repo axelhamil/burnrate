@@ -1,12 +1,13 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { BurnrateCostLedger, BurnrateHistory, BurnrateReading, BurnrateSessionCost, BurnrateSnapshot } from '../types'
-import { alertsFor, parseAlertState, reportText } from './alerts'
+import { alertsFor, parseAlertState, withNotified, type Notice } from './alerts'
 import { bandTree } from './band'
 import { insightsOf, type WindowInsight } from './insight'
-import { EMPTY_HISTORY, localDate, parseHistory, recordReadings } from './pace'
+import { EMPTY_HISTORY, localDate, parseHistory, recordReadings, RETENTION_MS, withPeaks } from './pace'
 import { paneTree, type Elements } from './pane'
 import { mergeCosts, parseLedger, recordCost } from './quota-size'
+import { reportText } from './report'
 
 const PANE = 'burnrate'
 const STORE_KEY = 'history'
@@ -15,8 +16,8 @@ const ALERTS_KEY = 'alerts'
 const REPORTED_WEEK_KEY = 'reportedWeek'
 const UNLABELED = 'other'
 const ALERT_TOAST_MS = 8_000
+const SONNET_COMMAND = '/model sonnet'
 const TICK_MS = 60_000
-const COST_RETENTION_MS = 49 * 86_400_000
 const EMPTY_SNAPSHOT: BurnrateSnapshot = {
   readings: [],
   history: EMPTY_HISTORY,
@@ -32,6 +33,7 @@ type Settings = { isAlertsOn: boolean }
 const snapshot = { plugin: 'burnrate', key: 'snapshot' } as const
 
 let ticker: { cancel: () => void } | undefined
+let pending: Promise<void> = Promise.resolve()
 
 function toReadings(rateLimits: readonly BurnrateReading[]): BurnrateReading[] {
   return rateLimits.map(({ kind, percentUsed, resetsAt }) =>
@@ -73,7 +75,7 @@ async function loadSessions($: EngineInterface, dir: string, now: number): Promi
 
   const entries = await $.fs.list(dir)
   const recent = entries.filter(
-    entry => entry.kind === 'file' && entry.name.endsWith('.json') && entry.mtimeMs >= now - COST_RETENTION_MS,
+    entry => entry.kind === 'file' && entry.name.endsWith('.json') && entry.mtimeMs >= now - RETENTION_MS,
   )
   const ledgers = await Promise.all(
     recent.map(async entry => {
@@ -89,7 +91,9 @@ async function loadSessions($: EngineInterface, dir: string, now: number): Promi
   return ledgers.flat()
 }
 
-function stateOf(value: BurnrateSnapshot | undefined): BurnrateSnapshot {
+async function readState($: EngineInterface): Promise<BurnrateSnapshot> {
+  const { value } = await $.state.get(snapshot)
+
   return { ...EMPTY_SNAPSHOT, ...value, history: parseHistory(value?.history) }
 }
 
@@ -101,11 +105,11 @@ async function isNewReading($: EngineInterface, readings: readonly BurnrateReadi
 
 async function recordedHistory(
   $: EngineInterface,
+  stored: BurnrateHistory,
   readings: readonly BurnrateReading[],
   now: number,
   isFresh: boolean,
 ): Promise<BurnrateHistory> {
-  const stored = parseHistory(await $.store.get(STORE_KEY))
   if (!isFresh && !(await isNewReading($, readings))) return stored
 
   const history = recordReadings(stored, readings, now, localDate(now))
@@ -115,14 +119,30 @@ async function recordedHistory(
   return history
 }
 
+async function sentKeys($: EngineInterface, notices: readonly Notice[]): Promise<string[]> {
+  const sent = await Promise.all(
+    notices.map(notice =>
+      $.ui.notify(notice.text, { title: 'burnrate' }).then(
+        () => [notice.key],
+        () => [],
+      ),
+    ),
+  )
+
+  return sent.flat()
+}
+
 async function raiseAlerts($: EngineInterface, insights: readonly WindowInsight[], now: number): Promise<void> {
   const previous = parseAlertState(await $.store.get(ALERTS_KEY))
   const { toasts, notices, state } = alertsFor(insights, previous, now)
-  if (JSON.stringify(state) !== JSON.stringify(previous)) await $.store.set(ALERTS_KEY, state)
 
   for (const text of toasts) $.ui.toast(text, { timeoutMs: ALERT_TOAST_MS })
-  for (const text of notices) await $.ui.notify(text, { title: 'burnrate' }).catch(() => undefined)
 
+  const notified = withNotified(state, await sentKeys($, notices))
+  if (JSON.stringify(notified) !== JSON.stringify(previous)) await $.store.set(ALERTS_KEY, notified)
+}
+
+async function reportLastWeek($: EngineInterface, insights: readonly WindowInsight[]): Promise<void> {
   const report = insights.find(insight => insight.lastWeek !== null)?.lastWeek
   if (report === undefined || report === null || (await $.store.get(REPORTED_WEEK_KEY)) === report.key) return
 
@@ -130,7 +150,7 @@ async function raiseAlerts($: EngineInterface, insights: readonly WindowInsight[
   $.ui.toast(reportText(report), { timeoutMs: ALERT_TOAST_MS })
 }
 
-async function refresh(
+async function refreshNow(
   $: EngineInterface,
   settings: Settings,
   rateLimits: readonly BurnrateReading[],
@@ -138,8 +158,9 @@ async function refresh(
   isFresh: boolean,
 ): Promise<void> {
   const now = await $.clock.now()
-  const readings = toReadings(rateLimits)
-  const history = await recordedHistory($, readings, now, isFresh)
+  const stored = parseHistory(await $.store.get(STORE_KEY))
+  const readings = withPeaks(toReadings(rateLimits), stored)
+  const history = await recordedHistory($, stored, readings, now, isFresh)
 
   const dir = await costDir($)
   const sessionId = await $.session.id()
@@ -151,15 +172,42 @@ async function refresh(
   const next: BurnrateSnapshot = { readings, history, costs, sessions, sessionId, model, now }
   await $.state.set(snapshot, next)
 
-  if (settings.isAlertsOn) await raiseAlerts($, insightsOf(next), now)
+  if (!settings.isAlertsOn) return
+
+  const insights = insightsOf(next)
+  await raiseAlerts($, insights, now)
+  await reportLastWeek($, insights)
+}
+
+function refresh(
+  $: EngineInterface,
+  settings: Settings,
+  rateLimits: readonly BurnrateReading[],
+  usd: number | undefined,
+  isFresh: boolean,
+): Promise<void> {
+  const run = pending.then(() => refreshNow($, settings, rateLimits, usd, isFresh))
+  pending = run.catch(() => undefined)
+
+  return run
 }
 
 function ensureTicker($: EngineInterface, settings: Settings): void {
   if (ticker !== undefined) return
 
   ticker = $.clock.every(TICK_MS, () => {
-    void $.session.usage().then(usage => refresh($, settings, usage.rateLimits, usage.cost?.usd, false))
+    void $.session
+      .usage()
+      .then(usage => refresh($, settings, usage.rateLimits, usage.cost?.usd, false))
+      .catch((error: unknown) => $.ui.log(`burnrate refresh failed: ${String(error)}`, { to: 'debug' }))
   })
+}
+
+async function suggestSonnet($: EngineInterface): Promise<void> {
+  const draft = await $.prompt.read()
+  if (draft.text.trim() !== '') return $.ui.toast('Clear the prompt to switch to Sonnet')
+
+  await $.prompt.fill({ text: SONNET_COMMAND })
 }
 
 async function togglePane($: EngineInterface): Promise<void> {
@@ -201,8 +249,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const elements: Elements = { Box, Text }
-    const { value } = await $.state.get(snapshot)
-    const state = stateOf(value)
+    const state = await readState($)
 
     return paneTree(elements, insightsOf(state), localDate(state.now), e.props.bodyColumns)
   })
@@ -210,10 +257,13 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!isBandOn || e.props.hasSurvey) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
-    const { value } = await $.state.get(snapshot)
-    const state = stateOf(value)
-    const tree = bandTree({ Box, Text }, insightsOf(state), e.props.bodyColumns, state.model)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const state = await readState($)
+    const logged = (action: Promise<void>) => {
+      void action.catch((error: unknown) => $.ui.log(`burnrate action failed: ${String(error)}`, { to: 'debug' }))
+    }
+    const actions = { togglePane: () => logged(togglePane($)), suggestSonnet: () => logged(suggestSonnet($)) }
+    const tree = bandTree({ Box, Button, Text }, insightsOf(state), e.props.bodyColumns, state.model, actions)
 
     return tree ?? next(e)
   })

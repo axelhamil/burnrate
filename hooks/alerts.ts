@@ -1,9 +1,11 @@
 import type { BurnrateAlertState } from '../types'
-import { formatClock, formatDay, formatPct } from './format'
+import { formatClock } from './format'
 import { isVerdict, VERDICT_SEVERITY, VERDICT_WORDS, type Verdict, type WindowInsight } from './insight'
-import type { WeekReport } from './report'
+import { resetsAtOfKey } from './pace'
 
-export type Alerts = { toasts: string[]; notices: string[]; state: BurnrateAlertState }
+export type Notice = { key: string; text: string }
+
+type Alerts = { toasts: string[]; notices: Notice[]; state: BurnrateAlertState }
 
 const IMMINENT_MS = 30 * 60_000
 const BASELINE: Verdict = 'on_track'
@@ -31,14 +33,14 @@ export function parseAlertState(value: unknown): BurnrateAlertState {
 }
 
 function isLive(key: string, now: number): boolean {
-  const resetsAt = Number(key.split('@')[1])
+  const resetsAt = resetsAtOfKey(key)
 
-  return Number.isFinite(resetsAt) && resetsAt > now
+  return resetsAt !== null && resetsAt > now
 }
 
 export function alertsFor(insights: readonly WindowInsight[], previous: BurnrateAlertState, now: number): Alerts {
   const toasts: string[] = []
-  const notices: string[] = []
+  const notices: Notice[] = []
   const state: BurnrateAlertState = Object.fromEntries(Object.entries(previous).filter(([key]) => isLive(key, now)))
 
   for (const insight of insights) {
@@ -50,18 +52,23 @@ export function alertsFor(insights: readonly WindowInsight[], previous: Burnrate
       toasts.push(`burnrate · ${LABELS[view.kind]} ${VERDICT_WORDS[verdict]}`)
     }
 
-    const notice = before?.notified === true ? null : noticeFor(insight, now)
-    if (notice !== null) notices.push(notice)
+    const isNotified = before?.notified === true
+    const notice = isNotified ? null : noticeFor(insight, now)
+    if (notice !== null) notices.push({ key: view.key, text: notice })
 
     const worst = VERDICT_SEVERITY[verdict] > VERDICT_SEVERITY[beforeVerdict] ? verdict : beforeVerdict
-    state[view.key] = { verdict: worst, notified: before?.notified === true || notice !== null }
+    state[view.key] = { verdict: worst, notified: isNotified }
   }
 
   return { toasts, notices, state }
 }
 
-export function reportText({ peak, busiest }: WeekReport): string {
-  const busiestText = busiest === null ? '' : `, busiest ${formatDay(busiest.date)} at ${formatPct(busiest.used)}`
+export function withNotified(state: BurnrateAlertState, keys: readonly string[]): BurnrateAlertState {
+  const notified = keys.flatMap(key => {
+    const entry = state[key]
 
-  return `burnrate · last week peaked ${formatPct(peak)}${busiestText}`
+    return entry === undefined ? [] : [[key, { ...entry, notified: true }] as const]
+  })
+
+  return { ...state, ...Object.fromEntries(notified) }
 }

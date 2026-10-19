@@ -2,9 +2,9 @@ import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { windowKey } from '../hooks/pace'
+import { HOUR_MS, WEEK_MS, windowKey } from '../hooks/pace'
 import type { BurnrateHistory, BurnrateReading } from '../types'
-import { closedWeekPeaks, COST_DIR, drawnBand, drawnTree, HOUR_MS, measure, memoryFs, reading, WEEK_MS } from './harness'
+import { closedWeekPeaks, COST_DIR, drawnBand, drawnTree, measure, memoryFs, reading } from './harness'
 import { toAnsi, toPlain, widestLine } from './render-text'
 
 type Scenario = {
@@ -176,3 +176,32 @@ for (const scenario of [freshWeek(), midWeekAhead(), limitHit(), busiestBand()])
     })
   }
 }
+
+test('given the busiest state, when the band narrows, then it drops the day bars, session, today, budget, advice and 5h in that order', async ($, on) => {
+  await measured($, on, busiestBand())
+  const widths = [104, 103, 78, 72, 58, 50, 37]
+  const lines = await Promise.all(widths.map(async columns => toPlain(await drawnBand($, columns))))
+
+  expect(lines).toEqual([
+    '▌ ● hit the brakes   7d → 97%   48%/d   today ███░░ 6/10%   session $13   ▆███▇▃▃▃   5h 90%   try sonnet',
+    '▌ ● hit the brakes   7d → 97%   48%/d   today ███░░ 6/10%   session $13   5h 90%   try sonnet',
+    '▌ ● hit the brakes   7d → 97%   48%/d   today 6/10%   5h 90%   try sonnet',
+    '▌ ● hit the brakes   7d → 97%   48%/d   5h 90%   try sonnet',
+    '▌ ● hit the brakes   7d → 97%   5h 90%   try sonnet',
+    '▌ ● hit the brakes   7d → 97%   5h 90%',
+    '▌ ● hit the brakes   7d → 97%',
+  ])
+})
+
+test('given the mid-week-ahead state, when the band is 82 columns wide, then today has its bar, and at 81 it has none', async ($, on) => {
+  await measured($, on, midWeekAhead())
+
+  expect(toPlain(await drawnBand($, 82))).toContain('today █████ 14/14%')
+  expect(toPlain(await drawnBand($, 81))).toContain('today 14/14%')
+})
+
+test('given Opus on a week ahead of pace, when the band draws, then it advises Sonnet', async ($, on) => {
+  await measured($, on, { ...midWeekAhead(), model: 'claude-opus-5-5' })
+
+  expect(toPlain(await drawnBand($, 140))).toContain('try sonnet')
+})

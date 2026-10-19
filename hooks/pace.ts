@@ -5,13 +5,13 @@ export type WindowKind = 'five_hour' | 'seven_day'
 
 export type Tone = 'normal' | 'dim' | 'warn' | 'alert'
 
-export type Budget = { value: number; unit: 'd' | 'h'; ratio: number; tone: Tone }
+type Budget = { value: number; unit: 'd' | 'h'; ratio: number; tone: Tone }
 
-export type Today = { used: number; budget: number; tone: Tone }
+type Today = { used: number; budget: number; tone: Tone }
 
 export type DayUsage = { date: string; used: number }
 
-export type ProjectionBasis = 'analog' | 'typical' | 'linear'
+type ProjectionBasis = 'analog' | 'typical' | 'linear'
 
 export type WindowView = {
   kind: WindowKind
@@ -32,11 +32,17 @@ const MINUTE_MS = 60_000
 const HOUR_SECONDS = 3_600
 const DAY_SECONDS = 86_400
 const KEY_ROUNDING_MS = 10 * MINUTE_MS
-const DAY_START_RETENTION_MS = 30 * DAY_SECONDS * 1_000
-const ANALOG_RETENTION_MS = 49 * DAY_SECONDS * 1_000
-const HOUR_MS = HOUR_SECONDS * 1_000
 const ANALOG_WINDOWS = 6
 const MIN_LINEAR_ELAPSED = 0.1
+const ELAPSED_EPSILON = 1e-9
+
+export const HOUR_MS = HOUR_SECONDS * 1_000
+export const DAY_MS = DAY_SECONDS * 1_000
+export const WEEK_MS = 7 * DAY_MS
+export const RETENTION_MS = 49 * DAY_MS
+export const EVEN_DAY_PCT = 100 / 7
+
+const DAY_START_RETENTION_MS = 30 * DAY_MS
 
 export const WINDOW_SECONDS: Record<WindowKind, number> = {
   five_hour: 5 * HOUR_SECONDS,
@@ -49,12 +55,18 @@ export function isWindowKind(kind: string): kind is WindowKind {
   return kind === 'five_hour' || kind === 'seven_day'
 }
 
-export function roundResetsAt(resetsAtMs: number): number {
+function roundResetsAt(resetsAtMs: number): number {
   return Math.round(resetsAtMs / KEY_ROUNDING_MS) * KEY_ROUNDING_MS
 }
 
 export function windowKey(kind: WindowKind, resetsAtMs: number): string {
   return `${kind}@${roundResetsAt(resetsAtMs)}`
+}
+
+export function resetsAtOfKey(key: string): number | null {
+  const resetsAt = Number(key.split('@')[1])
+
+  return Number.isFinite(resetsAt) ? resetsAt : null
 }
 
 export function localDate(ms: number): string {
@@ -112,14 +124,21 @@ function kept<T>(entries: Record<string, T>, isKept: (entry: T) => boolean): Rec
 }
 
 function pruned(history: BurnrateHistory, now: number): BurnrateHistory {
-  const oldestPeak = now - ANALOG_RETENTION_MS
-  const oldestHour = Math.floor((now - ANALOG_RETENTION_MS) / HOUR_MS)
+  const oldestPeak = now - RETENTION_MS
+  const oldestHour = Math.floor((now - RETENTION_MS) / HOUR_MS)
   const peaks = kept(history.peaks, peak => peak.resetsAt >= oldestPeak)
   const dayStarts = kept(history.dayStarts, start => start.seenAt >= now - DAY_START_RETENTION_MS)
   const hours = kept(history.hours, sample => sample.hour >= oldestHour)
   if (peaks === history.peaks && dayStarts === history.dayStarts && hours === history.hours) return history
 
   return { peaks, dayStarts, hours }
+}
+
+function lastDayPeak(history: BurnrateHistory, key: string, now: number): number | undefined {
+  const oldestHour = Math.floor((now - DAY_MS) / HOUR_MS)
+  const isRecent = Object.values(history.hours).some(sample => sample.windowKey === key && sample.hour >= oldestHour)
+
+  return isRecent ? history.peaks[key]?.peak : undefined
 }
 
 export function recordReadings(
@@ -132,22 +151,34 @@ export function recordReadings(
     const resetsAt = resetsAtMs(reading)
     if (resetsAt === null || !isWindowKind(reading.kind)) return current
 
-    const peaked = withPeak(current, reading.kind, resetsAt, reading.percentUsed)
     const key = windowKey(reading.kind, resetsAt)
+    const previousPeak = lastDayPeak(current, key, now)
+    const peaked = withPeak(current, reading.kind, resetsAt, reading.percentUsed)
     const sampled = withHourSample(peaked, key, reading.percentUsed, now)
     if (reading.kind !== 'seven_day') return sampled
 
-    return withDayStart(sampled, key, reading.percentUsed, now, today)
+    return withDayStart(sampled, key, previousPeak ?? reading.percentUsed, now, today)
   }, history)
 
   return pruned(recorded, now)
 }
 
-export function closedPeaks(history: BurnrateHistory, kind: WindowKind, resetsAt: number): BurnratePeak[] {
+export function withPeaks(readings: readonly BurnrateReading[], history: BurnrateHistory): BurnrateReading[] {
+  return readings.map(reading => {
+    const resetsAt = resetsAtMs(reading)
+    if (resetsAt === null || !isWindowKind(reading.kind)) return reading
+
+    const peak = history.peaks[windowKey(reading.kind, resetsAt)]?.peak ?? reading.percentUsed
+
+    return { ...reading, percentUsed: Math.max(reading.percentUsed, peak) }
+  })
+}
+
+export function closedPeaks(history: BurnrateHistory, kind: WindowKind, resetsAt: number, now: number): BurnratePeak[] {
   const current = roundResetsAt(resetsAt)
 
   return Object.values(history.peaks)
-    .filter(peak => peak.kind === kind && peak.resetsAt < current)
+    .filter(peak => peak.kind === kind && peak.resetsAt < current && peak.resetsAt <= now)
     .sort((a, b) => b.resetsAt - a.resetsAt)
     .slice(0, ANALOG_WINDOWS)
 }
@@ -175,13 +206,19 @@ function pastWindowOf(history: BurnrateHistory, peak: BurnratePeak, kind: Window
   return { peak: peak.peak, before, after }
 }
 
-export function outlookFor(history: BurnrateHistory, kind: WindowKind, resetsAt: number, elapsedSeconds: number): Outlook | null {
-  const pastWindows = closedPeaks(history, kind, resetsAt).map(peak => pastWindowOf(history, peak, kind, elapsedSeconds))
+export function outlookFor(
+  history: BurnrateHistory,
+  kind: WindowKind,
+  resetsAt: number,
+  now: number,
+  elapsedSeconds: number,
+): Outlook | null {
+  const pastWindows = closedPeaks(history, kind, resetsAt, now).map(peak => pastWindowOf(history, peak, kind, elapsedSeconds))
 
   return outlookOf(pastWindows, elapsedSeconds, WINDOW_SECONDS[kind])
 }
 
-export type ProjectionInput = {
+type ProjectionInput = {
   pct: number
   secondsLeft: number
   windowSeconds: number
@@ -192,17 +229,17 @@ export function projectAtReset({ pct, secondsLeft, windowSeconds, outlook }: Pro
   const elapsed = Math.min(1, Math.max(0, 1 - secondsLeft / windowSeconds))
 
   if (outlook === null) {
-    if (elapsed < MIN_LINEAR_ELAPSED) return null
+    if (elapsed < MIN_LINEAR_ELAPSED - ELAPSED_EPSILON) return null
 
-    return Math.round(pct / elapsed)
+    return pct / elapsed
   }
 
-  if (outlook.remaining !== null) return Math.round(pct + outlook.remaining)
+  if (outlook.remaining !== null) return pct + outlook.remaining
 
   const remaining = 1 - elapsed
   const blended = pct + remaining * outlook.typical
 
-  return Math.round(pct + remaining * blended)
+  return pct + remaining * blended
 }
 
 function basisOf(outlook: Outlook | null): ProjectionBasis {
@@ -219,7 +256,7 @@ export function projectionTone(projected: number | null): Tone {
   return 'normal'
 }
 
-export function paceTone(ratio: number): Tone {
+function paceTone(ratio: number): Tone {
   if (ratio < 0.5) return 'alert'
   if (ratio < 0.85) return 'warn'
 
@@ -239,7 +276,7 @@ export function budgetLeft(kind: WindowKind, pct: number, secondsLeft: number): 
 }
 
 export function todayUsage(pct: number, start: BurnrateDayStart, resetsAt: number): Today | null {
-  const daysLeft = (resetsAt - start.seenAt) / (DAY_SECONDS * 1_000)
+  const daysLeft = (resetsAt - start.seenAt) / DAY_MS
   if (daysLeft <= 0) return null
 
   const used = Math.max(0, pct - start.pct)
@@ -288,7 +325,7 @@ export function describeWindow(
   const key = windowKey(kind, resetsAt)
   const secondsLeft = Math.max(0, (resetsAt - now) / 1_000)
   const windowSeconds = WINDOW_SECONDS[kind]
-  const outlook = outlookFor(history, kind, resetsAt, Math.max(0, windowSeconds - secondsLeft))
+  const outlook = outlookFor(history, kind, resetsAt, now, Math.max(0, windowSeconds - secondsLeft))
   const projected = projectAtReset({ pct, secondsLeft, windowSeconds, outlook })
   const start = history.dayStarts[`${key}#${today}`]
   const todayView = kind === 'seven_day' && start !== undefined ? todayUsage(pct, start, resetsAt) : null

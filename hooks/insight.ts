@@ -1,12 +1,12 @@
 import type { BurnrateSnapshot } from '../types'
-import { dailyUsage, describeWindow, localDate, type DayUsage, type WindowKind, type WindowView } from './pace'
+import { dailyUsage, describeWindow, localDate, WEEK_MS, type DayUsage, type WindowKind, type WindowView } from './pace'
 import { detectQuotaChange, quotaUsdPerPoint, windowRatios, type QuotaChange } from './quota-size'
 import { lastWeekReport, type WeekReport } from './report'
 import { weekSpend, type WeekSpend } from './sessions'
 
 export type Verdict = 'room' | 'on_track' | 'ahead' | 'will_hit' | 'limit'
 
-export type QuotaSize = { usdPerPoint: number; change: QuotaChange | null }
+type QuotaSize = { usdPerPoint: number; change: QuotaChange | null }
 
 export type WindowInsight = {
   view: WindowView
@@ -31,7 +31,6 @@ const AHEAD_RATIO = 0.85
 const ROOM_RATIO = 1.15
 const ROOM_MAX_PROJECTION = 85
 const KIND_ORDER: Record<WindowKind, number> = { seven_day: 0, five_hour: 1 }
-const WEEK_MS = 7 * 86_400_000
 
 export function isVerdict(value: unknown): value is Verdict {
   return typeof value === 'string' && value in VERDICT_SEVERITY
@@ -56,7 +55,7 @@ export function verdictOf(view: WindowView): Verdict {
   return 'on_track'
 }
 
-export function hitTime(view: WindowView, now: number): number | null {
+function hitTime(view: WindowView, now: number): number | null {
   if (view.projected === null || view.projected <= 100 || view.secondsLeft <= 0) return null
 
   const pctPerSecond = (view.projected - view.pct) / view.secondsLeft
