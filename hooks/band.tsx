@@ -7,8 +7,7 @@ import { smallBar, toneProps, VERDICT_COLORS, type Elements } from './pane'
 
 const SPARK_BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
 const EVEN_DAY_PCT = 100 / 7
-const FRAME_COLUMNS = 4
-const WIDE_COLUMNS = 82 + FRAME_COLUMNS
+const WIDE_COLUMNS = 82
 const GAP_COLUMNS = 3
 const TODAY_BAR_WIDTH = 5
 const ADVICE_SEVERITY = VERDICT_SEVERITY.ahead
@@ -116,7 +115,7 @@ function weekParts(elements: Elements, insight: WindowInsight, columns: number):
 }
 
 function lineWidth(parts: readonly Part[]): number {
-  return parts.reduce((sum, part) => sum + [...part.text].length + GAP_COLUMNS, FRAME_COLUMNS - GAP_COLUMNS)
+  return parts.reduce((sum, part) => sum + [...part.text].length + GAP_COLUMNS, -GAP_COLUMNS)
 }
 
 function fitting(parts: readonly Part[], columns: number): Part[] {
@@ -148,10 +147,10 @@ export function bandTree(
   const isAdvised = VERDICT_SEVERITY[verdict] >= ADVICE_SEVERITY && model.toLowerCase().includes('opus')
   const word = `● ${VERDICT_WORDS[verdict]}`
   const head: Part = {
-    text: word,
+    text: `▌ ${word}`,
     node: (
-      <Text bold color={VERDICT_COLORS[verdict]}>
-        {word}
+      <Text color={VERDICT_COLORS[verdict]}>
+        ▌ <Text bold>{word}</Text>
       </Text>
     ),
     rank: Number.POSITIVE_INFINITY,
@@ -170,7 +169,7 @@ export function bandTree(
   if (isAdvised) parts.push({ text: 'try sonnet', node: <Text color="warning">try sonnet</Text>, rank: RANKS.advice })
 
   return (
-    <Box flexDirection="row" columnGap={GAP_COLUMNS} borderStyle="round" borderColor={VERDICT_COLORS[verdict]} borderDimColor paddingX={1}>
+    <Box flexDirection="row" columnGap={GAP_COLUMNS}>
       {fitting(parts, columns).map(part => part.node)}
     </Box>
   )
