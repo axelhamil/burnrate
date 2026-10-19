@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/axelhamil/burnrate/compare/v0.2.0...v0.3.0) (2026-10-19)
+
+
+### Features
+
+* **band:** show the quota summary as a colored band above the prompt ([#5](https://github.com/axelhamil/burnrate/issues/5)) ([022e5bb](https://github.com/axelhamil/burnrate/commit/022e5bbd59453b2c546771f7b58c28eaf4efa24f))
+
 ## [0.2.0](https://github.com/axelhamil/burnrate/compare/v0.1.0...v0.2.0) (2026-10-19)
 
 
