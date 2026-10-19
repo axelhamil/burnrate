@@ -18,7 +18,8 @@ type Scenario = {
 declare const console: { log: (text: string) => void }
 
 const COLUMNS = [60, 90, 140] as const
-const BAND_COLUMNS = [60, 70, 80, 115] as const
+const BAND_COLUMNS = [60, 74, 84, 115] as const
+const BAND_FRAME_COLUMNS = 4
 const MIN_MS = 60_000
 const WEEK_RESET = new Date(2026, 9, 18, 11, 0, 0).getTime()
 const WEEK_KEY = windowKey('seven_day', WEEK_RESET)
@@ -158,7 +159,7 @@ for (const scenario of [freshWeek(), midWeekAhead(), limitHit()]) {
 
 for (const scenario of [freshWeek(), midWeekAhead(), limitHit(), busiestBand()]) {
   for (const columns of BAND_COLUMNS) {
-    test(`given the ${scenario.name} state, when the band is drawn at ${columns} columns, then it fits on one line`, async ($, on) => {
+    test(`given the ${scenario.name} state, when the band is drawn at ${columns} columns, then it fits on one framed line`, async ($, on) => {
       await measured($, on, scenario)
       const tree = await drawnBand($, columns)
       const id = `band-${scenario.name}-${columns}`
@@ -167,7 +168,7 @@ for (const scenario of [freshWeek(), midWeekAhead(), limitHit(), busiestBand()])
       console.log(`<<<snapshot ${id}.ansi\n${toAnsi(tree)}\n>>>snapshot`)
 
       expect(toPlain(tree).split('\n').length).toBe(1)
-      expect(widestLine(tree) <= columns).toBe(true)
+      expect(widestLine(tree) + BAND_FRAME_COLUMNS <= columns).toBe(true)
     })
   }
 }

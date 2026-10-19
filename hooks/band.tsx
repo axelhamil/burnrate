@@ -15,8 +15,9 @@ const VERDICT_WORDS: Record<Verdict, string> = {
 const VERDICT_SEVERITY: Record<Verdict, number> = { room: 0, on_track: 1, ahead: 2, will_hit: 3, limit: 4 }
 const SPARK_BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
 const EVEN_DAY_PCT = 100 / 7
-const WIDE_COLUMNS = 82
-const MEDIUM_COLUMNS = 64
+const FRAME_COLUMNS = 4
+const WIDE_COLUMNS = 82 + FRAME_COLUMNS
+const MEDIUM_COLUMNS = 64 + FRAME_COLUMNS
 const TODAY_BAR_WIDTH = 5
 
 function sparkGlyph(used: number, top: number): string {
@@ -95,7 +96,7 @@ export function bandTree(elements: Elements, insights: readonly WindowInsight[],
   const hours = insights.find(insight => insight.view.kind === 'five_hour')
 
   return (
-    <Box flexDirection="row" columnGap={3}>
+    <Box flexDirection="row" columnGap={3} borderStyle="round" borderColor={VERDICT_COLORS[verdict]} borderDimColor paddingX={1}>
       <Text bold color={VERDICT_COLORS[verdict]}>
         ● {VERDICT_WORDS[verdict]}
       </Text>
