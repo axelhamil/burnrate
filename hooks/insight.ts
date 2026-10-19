@@ -70,18 +70,50 @@ export function insightsOf(state: BurnrateSnapshot): WindowInsight[] {
     }))
 }
 
-function weekStatus({ view }: WindowInsight): string {
+const VERDICT_WORDS: Record<Verdict, string> = {
+  room: 'go wild',
+  on_track: 'cruising',
+  ahead: 'easy tiger',
+  will_hit: 'hit the brakes',
+  limit: 'tapped out',
+}
+const VERDICT_SEVERITY: Record<Verdict, number> = { room: 0, on_track: 1, ahead: 2, will_hit: 3, limit: 4 }
+const SPARK_BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+const EVEN_DAY_PCT = 100 / 7
+
+export function sparkline(days: readonly DayUsage[]): string {
+  const top = Math.max(EVEN_DAY_PCT, ...days.map(day => day.used))
+
+  return days
+    .map(day => SPARK_BARS[Math.min(SPARK_BARS.length - 1, Math.floor((day.used / top) * SPARK_BARS.length))] ?? '')
+    .join('')
+}
+
+function weekStatus({ view, days }: WindowInsight): string {
   const parts = [view.projected === null ? `7d ${formatPct(view.pct)}` : `7d end ${view.projected}%`]
   if (view.budget !== null) parts.push(`${formatPct(view.budget.value)}/d`)
   if (view.today !== null) parts.push(`today ${Math.round(view.today.used)}/${formatPct(view.today.budget)}`)
+  if (days.length >= 2) parts.push(sparkline(days))
 
   return parts.join(' · ')
+}
+
+function worstVerdict(insights: readonly WindowInsight[]): Verdict | null {
+  return insights.reduce<Verdict | null>(
+    (worst, { verdict }) => (worst === null || VERDICT_SEVERITY[verdict] > VERDICT_SEVERITY[worst] ? verdict : worst),
+    null,
+  )
 }
 
 export function statusText(insights: readonly WindowInsight[]): string | undefined {
   const week = insights.find(insight => insight.view.kind === 'seven_day')
   const hours = insights.find(insight => insight.view.kind === 'five_hour')
-  const parts = [week === undefined ? null : weekStatus(week), hours === undefined ? null : `5h ${formatPct(hours.view.pct)}`]
+  const verdict = worstVerdict(insights)
+  const parts = [
+    verdict === null ? null : VERDICT_WORDS[verdict],
+    week === undefined ? null : weekStatus(week),
+    hours === undefined ? null : `5h ${formatPct(hours.view.pct)}`,
+  ]
   const text = parts.filter(part => part !== null).join(' · ')
 
   return text === '' ? undefined : text

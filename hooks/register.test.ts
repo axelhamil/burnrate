@@ -94,3 +94,19 @@ test('given an unchanged reading polled by the minute ticker past midnight, when
 
   expect(await texts($)).not.toContain('Today')
 })
+
+test('given a calm week but a 5h window about to run out, when a reading arrives, then the status line opens with the worse verdict', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW)
+  const statuses: string[] = []
+  on('ui.status', ($, e) => {
+    statuses.push(e.text ?? '')
+
+    return { value: undefined }
+  })
+
+  await measure($, [reading('seven_day', 5, NOW + 3 * DAY_MS), reading('five_hour', 90, NOW + 2 * HOUR_MS)])
+
+  expect(statuses.at(-1) ?? '').toStartWith('hit the brakes · ')
+})
