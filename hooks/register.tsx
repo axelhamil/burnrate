@@ -15,6 +15,7 @@ const ALERTS_KEY = 'alerts'
 const REPORTED_WEEK_KEY = 'reportedWeek'
 const UNLABELED = 'other'
 const ALERT_TOAST_MS = 8_000
+const SONNET_COMMAND = '/model sonnet'
 const TICK_MS = 60_000
 const COST_RETENTION_MS = 49 * 86_400_000
 const EMPTY_SNAPSHOT: BurnrateSnapshot = {
@@ -162,6 +163,13 @@ function ensureTicker($: EngineInterface, settings: Settings): void {
   })
 }
 
+async function suggestSonnet($: EngineInterface): Promise<void> {
+  const draft = await $.prompt.read()
+  if (draft.text.trim() !== '') return $.ui.toast('Clear the prompt to switch to Sonnet')
+
+  await $.prompt.fill({ text: SONNET_COMMAND })
+}
+
 async function togglePane($: EngineInterface): Promise<void> {
   const panes = await $.ui.panes()
   const isOpen = panes.some(pane => pane.id === PANE)
@@ -210,10 +218,11 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!isBandOn || e.props.hasSurvey) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const { value } = await $.state.get(snapshot)
     const state = stateOf(value)
-    const tree = bandTree({ Box, Text }, insightsOf(state), e.props.bodyColumns, state.model)
+    const actions = { togglePane: () => void togglePane($), suggestSonnet: () => void suggestSonnet($) }
+    const tree = bandTree({ Box, Button, Text }, insightsOf(state), e.props.bodyColumns, state.model, actions)
 
     return tree ?? next(e)
   })

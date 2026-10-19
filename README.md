@@ -51,6 +51,8 @@ A one-line band also shows right above the prompt, behind a bar tinted by the ve
 
 On Opus, when the worse verdict is `easy tiger` or above, the band ends with `try sonnet`.
 
+Every figure in the band is clickable: a click toggles the pane, and a click on `try sonnet` puts `/model sonnet` in an empty prompt, ready to send.
+
 The pane also lists this session's cost and the top 5 projects of the current 7d window (a project is the folder the session started in), with their share of the quota once its size is known, and a `Last week` line with the peak of the 7d window that closed in the last 7 days and its busiest day.
 
 ### Alerts

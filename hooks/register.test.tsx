@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { bandText, closedWeekPeaks, COST_DIR, DAY_MS, HOUR_MS, measure, memoryFs, reading, SESSION, texts } from '../tests/harness'
+import { bandTarget, bandText, closedWeekPeaks, COST_DIR, DAY_MS, HOUR_MS, measure, memoryFs, reading, SESSION, texts } from '../tests/harness'
 import { windowKey } from './pace'
 
 const NOW = Date.UTC(2026, 9, 17, 12, 0, 0)
@@ -224,4 +224,44 @@ test('given a calm week but a 5h window about to run out, when a reading arrives
   await measure($, [reading('seven_day', 5, NOW + 3 * DAY_MS), reading('five_hour', 90, NOW + 2 * HOUR_MS)])
 
   expect(await bandText($)).toStartWith('▌ ● hit the brakes')
+})
+
+test('given the band on screen, when the 7d projection is clicked, then the burnrate pane opens', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW)
+  const opened: string[] = []
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+
+    return { value: { isPlaced: true as const } }
+  })
+
+  await measure($, [reading('seven_day', 14, NOW + 3 * DAY_MS)])
+  const ui = await $.ui.mount(bandTarget(120))
+  await ui.press({ key: 'week' })
+  await ui.unmount()
+
+  expect(opened).toEqual(['burnrate'])
+})
+
+test('given Opus advised to try Sonnet with an empty prompt, when the advice is clicked, then the prompt holds the model switch', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW, {}, { model: 'claude-opus-5-5' })
+  const filled: string[] = []
+  on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
+  on('prompt.fill', ($, e) => {
+    filled.push(e.text)
+
+    return { isFilled: true }
+  })
+
+  await measure($, [reading('five_hour', 90, NOW + 2 * HOUR_MS)])
+  const ui = await $.ui.mount(bandTarget(120))
+  await ui.press({ key: 'advice' })
+  await ui.unmount()
+
+  expect(filled).toEqual(['/model sonnet'])
 })
