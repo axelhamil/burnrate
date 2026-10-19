@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { closedWeekPeaks, COST_DIR, DAY_MS, HOUR_MS, measure, memoryFs, reading, SESSION, texts } from '../tests/harness'
+import { bandText, closedWeekPeaks, COST_DIR, DAY_MS, HOUR_MS, measure, memoryFs, reading, SESSION, texts } from '../tests/harness'
 import { windowKey } from './pace'
 
 const NOW = Date.UTC(2026, 9, 17, 12, 0, 0)
@@ -55,30 +55,27 @@ test('given another session spent $20 while 7d rose 10 points, when the pane dra
   expect(drawn).toContain('Quota ≈ $200 / week')
 })
 
-async function statusesAfterReading($: Engine, on: On): Promise<string[]> {
+async function bandAfterReading($: Engine, on: On): Promise<string> {
   mock.store(on)
   mock.clock(on, { now: NOW })
   memoryFs(on, NOW)
-  const statuses: string[] = []
-  on('ui.status', ($, e) => {
-    statuses.push(e.text ?? '')
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
 
-    return { value: undefined }
+    return <Text>engine band</Text>
   })
 
   await measure($, [reading('seven_day', 14, NOW + 3 * DAY_MS)])
 
-  return statuses
+  return bandText($)
 }
 
-test('given the default options, when a reading arrives, then the status line shows the 7d projection', async ($, on) => {
-  const statuses = await statusesAfterReading($, on)
-
-  expect(statuses.at(-1) ?? '').toContain('7d end')
+test('given the default options, when a reading arrives, then the band above the prompt shows the 7d projection', async ($, on) => {
+  expect(await bandAfterReading($, on)).toContain('7d → ')
 })
 
-test('given the status line option is off, when a reading arrives, then no status is set', { options: { statusLine: false } }, async ($, on) => {
-  expect(await statusesAfterReading($, on)).toEqual([])
+test('given the status line option is off, when a reading arrives, then the band stays empty', { options: { statusLine: false } }, async ($, on) => {
+  expect(await bandAfterReading($, on)).not.toContain('7d')
 })
 
 test('given an unchanged reading polled by the minute ticker past midnight, when the pane draws, then no day start was stamped from it', async ($, on) => {
@@ -95,18 +92,12 @@ test('given an unchanged reading polled by the minute ticker past midnight, when
   expect(await texts($)).not.toContain('Today')
 })
 
-test('given a calm week but a 5h window about to run out, when a reading arrives, then the status line opens with the worse verdict', async ($, on) => {
+test('given a calm week but a 5h window about to run out, when a reading arrives, then the band opens with the worse verdict', async ($, on) => {
   mock.store(on)
   mock.clock(on, { now: NOW })
   memoryFs(on, NOW)
-  const statuses: string[] = []
-  on('ui.status', ($, e) => {
-    statuses.push(e.text ?? '')
-
-    return { value: undefined }
-  })
 
   await measure($, [reading('seven_day', 5, NOW + 3 * DAY_MS), reading('five_hour', 90, NOW + 2 * HOUR_MS)])
 
-  expect(statuses.at(-1) ?? '').toStartWith('hit the brakes · ')
+  expect(await bandText($)).toStartWith('● hit the brakes')
 })

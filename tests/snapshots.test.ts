@@ -4,7 +4,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { windowKey } from '../hooks/pace'
 import type { BurnrateHistory, BurnrateReading } from '../types'
-import { closedWeekPeaks, COST_DIR, drawnTree, HOUR_MS, measure, memoryFs, reading, WEEK_MS } from './harness'
+import { closedWeekPeaks, COST_DIR, drawnBand, drawnTree, HOUR_MS, measure, memoryFs, reading, WEEK_MS } from './harness'
 import { toAnsi, toPlain, widestLine } from './render-text'
 
 type Scenario = {
@@ -18,6 +18,7 @@ type Scenario = {
 declare const console: { log: (text: string) => void }
 
 const COLUMNS = [60, 90, 140] as const
+const BAND_COLUMNS = [60, 70, 80, 115] as const
 const MIN_MS = 60_000
 const WEEK_RESET = new Date(2026, 9, 18, 11, 0, 0).getTime()
 const WEEK_KEY = windowKey('seven_day', WEEK_RESET)
@@ -107,25 +108,65 @@ function limitHit(): Scenario {
   }
 }
 
-async function render($: Engine, on: On, scenario: Scenario, columns: number): Promise<unknown> {
+function busiestBand(): Scenario {
+  const now = new Date(2026, 9, 18, 9, 0, 0).getTime()
+
+  return {
+    name: 'busiest',
+    now,
+    history: {
+      peaks: closedWeekPeaks([60, 60, 60, 60], WEEK_RESET),
+      dayStarts: dayStarts([
+        ['2026-10-11', 0],
+        ['2026-10-12', 12],
+        ['2026-10-13', 30],
+        ['2026-10-14', 47],
+        ['2026-10-15', 63],
+        ['2026-10-16', 78],
+        ['2026-10-17', 84],
+        ['2026-10-18', 90],
+      ]),
+      hours: {},
+    },
+    costFiles: {},
+    readings: [reading('seven_day', 96, WEEK_RESET), reading('five_hour', 90, now + 2 * HOUR_MS)],
+  }
+}
+
+async function measured($: Engine, on: On, scenario: Scenario): Promise<void> {
   mock.store(on, { history: scenario.history })
   mock.clock(on, { now: scenario.now })
   memoryFs(on, scenario.now, scenario.costFiles)
 
   await measure($, scenario.readings)
-
-  return drawnTree($, columns)
 }
 
 for (const scenario of [freshWeek(), midWeekAhead(), limitHit()]) {
   for (const columns of COLUMNS) {
     test(`given the ${scenario.name} state, when drawn at ${columns} columns, then no line overflows`, async ($, on) => {
-      const tree = await render($, on, scenario, columns)
+      await measured($, on, scenario)
+      const tree = await drawnTree($, columns)
       const id = `${scenario.name}-${columns}`
 
       console.log(`<<<snapshot ${id}.txt\n${toPlain(tree)}\n>>>snapshot`)
       console.log(`<<<snapshot ${id}.ansi\n${toAnsi(tree)}\n>>>snapshot`)
 
+      expect(widestLine(tree) <= columns).toBe(true)
+    })
+  }
+}
+
+for (const scenario of [freshWeek(), midWeekAhead(), limitHit(), busiestBand()]) {
+  for (const columns of BAND_COLUMNS) {
+    test(`given the ${scenario.name} state, when the band is drawn at ${columns} columns, then it fits on one line`, async ($, on) => {
+      await measured($, on, scenario)
+      const tree = await drawnBand($, columns)
+      const id = `band-${scenario.name}-${columns}`
+
+      console.log(`<<<snapshot ${id}.txt\n${toPlain(tree)}\n>>>snapshot`)
+      console.log(`<<<snapshot ${id}.ansi\n${toAnsi(tree)}\n>>>snapshot`)
+
+      expect(toPlain(tree).split('\n').length).toBe(1)
       expect(widestLine(tree) <= columns).toBe(true)
     })
   }

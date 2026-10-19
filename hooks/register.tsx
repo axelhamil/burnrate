@@ -1,7 +1,8 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { BurnrateCostLedger, BurnrateHistory, BurnrateReading, BurnrateSnapshot } from '../types'
-import { insightsOf, statusText } from './insight'
+import { bandTree } from './band'
+import { insightsOf } from './insight'
 import { EMPTY_HISTORY, localDate, parseHistory, recordReadings } from './pace'
 import { paneTree, type Elements } from './pane'
 import { mergeCosts, parseLedger, recordCost } from './quota-size'
@@ -91,7 +92,6 @@ async function refresh(
   $: EngineInterface,
   rateLimits: readonly BurnrateReading[],
   usd: number | undefined,
-  isStatusOn: boolean,
   isFresh: boolean,
 ): Promise<void> {
   const now = await $.clock.now()
@@ -104,15 +104,13 @@ async function refresh(
   const costs = await loadCosts($, dir, now)
   const next: BurnrateSnapshot = { readings, history, costs, now }
   await $.state.set(snapshot, next)
-
-  if (isStatusOn) $.ui.status(statusText(insightsOf(next)))
 }
 
-function ensureTicker($: EngineInterface, isStatusOn: boolean): void {
+function ensureTicker($: EngineInterface): void {
   if (ticker !== undefined) return
 
   ticker = $.clock.every(TICK_MS, () => {
-    void $.session.usage().then(usage => refresh($, usage.rateLimits, usage.cost?.usd, isStatusOn, false))
+    void $.session.usage().then(usage => refresh($, usage.rateLimits, usage.cost?.usd, false))
   })
 }
 
@@ -125,28 +123,28 @@ async function togglePane($: EngineInterface): Promise<void> {
 }
 
 export const register: Register = (on, options) => {
-  const isStatusOn = options.statusLine !== false
+  const isBandOn = options.statusLine !== false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'burnrate', description: 'Toggle the burnrate quota pane', immediate: true })
     const usage = await $.session.usage()
-    await refresh($, usage.rateLimits, usage.cost?.usd, isStatusOn, false)
-    ensureTicker($, isStatusOn)
+    await refresh($, usage.rateLimits, usage.cost?.usd, false)
+    ensureTicker($)
 
     return next(e)
   })
 
   on('command.run', { command: 'burnrate' }, async $ => {
-    ensureTicker($, isStatusOn)
+    ensureTicker($)
     await togglePane($)
 
     return {}
   })
 
   on('session.measure', async ($, e, next) => {
-    ensureTicker($, isStatusOn)
+    ensureTicker($)
     const isFresh = e.changed.includes('rateLimits')
-    if (isFresh || e.changed.includes('cost')) await refresh($, e.rateLimits, e.cost?.usd, isStatusOn, isFresh)
+    if (isFresh || e.changed.includes('cost')) await refresh($, e.rateLimits, e.cost?.usd, isFresh)
 
     return next(e)
   })
@@ -158,5 +156,15 @@ export const register: Register = (on, options) => {
     const state = stateOf(value)
 
     return paneTree(elements, insightsOf(state), localDate(state.now), e.props.bodyColumns)
+  })
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!isBandOn || e.props.hasSurvey) return next(e)
+
+    const { Box, Text } = $.ui.resolve(e)
+    const { value } = await $.state.get(snapshot)
+    const tree = bandTree({ Box, Text }, insightsOf(stateOf(value)), e.props.bodyColumns)
+
+    return tree ?? next(e)
   })
 }
