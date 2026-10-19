@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/axelhamil/burnrate/compare/v0.3.1...v0.4.0) (2026-10-19)
+
+
+### Features
+
+* track cost per project, alert before limits and recap last week ([#9](https://github.com/axelhamil/burnrate/issues/9)) ([32c3d4f](https://github.com/axelhamil/burnrate/commit/32c3d4f3da725590e450978bfc55d55bac6bb7e2))
+
 ## [0.3.1](https://github.com/axelhamil/burnrate/compare/v0.3.0...v0.3.1) (2026-10-19)
 
 
