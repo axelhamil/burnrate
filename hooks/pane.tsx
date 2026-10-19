@@ -2,17 +2,16 @@ import type { BoxProps, Color, ElementConstructor, RenderElement, TextProps } fr
 
 import { formatClock, formatDay, formatDuration, formatPct, formatUsd } from './format'
 import type { Verdict, WindowInsight } from './insight'
-import { projectionTone, type DayUsage, type Tone, type WindowView } from './pace'
+import { EVEN_DAY_PCT, projectionTone, type DayUsage, type Tone, type WindowView } from './pace'
 
 export type Elements = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
-export type GaugeCell = { text: string; tone: CellTone }
+type GaugeCell = { text: string; tone: CellTone }
 
 type CellTone = 'filled' | 'empty' | 'marker'
 
 type Layout = { gaugeWidth: number; barWidth: number; isWide: boolean; isSideBySide: boolean }
 
-const EVEN_DAY_PCT = 100 / 7
 const WIDE_COLUMNS = 80
 const SIDE_BY_SIDE_COLUMNS = 120
 const GAUGE_MAX = 48
@@ -46,7 +45,7 @@ export function toneProps(tone: Tone): TextProps {
   return {}
 }
 
-export function gaugeCells(width: number, usedPct: number, markerPct: number): GaugeCell[] {
+function gaugeCells(width: number, usedPct: number, markerPct: number): GaugeCell[] {
   const filled = Math.round((Math.min(100, Math.max(0, usedPct)) / 100) * width)
   const marker = Math.min(width - 1, Math.round((markerPct / 100) * width))
   const cells = Array.from({ length: width }, (_, index): CellTone => {
@@ -116,7 +115,7 @@ function projectionLine({ Text }: Elements, { view, verdict }: WindowInsight, la
 
   return (
     <Text>
-      Projected at reset <Text {...toneProps(projectionTone(view.projected))}>{view.projected}%</Text>
+      Projected at reset <Text {...toneProps(projectionTone(view.projected))}>{Math.round(view.projected)}%</Text>
       {layout.isWide && <Text dimColor> {basisText(view)}</Text>}
     </Text>
   )
@@ -133,6 +132,10 @@ function budgetLine({ Text }: Elements, { view, verdict }: WindowInsight, layout
       {layout.isWide && <Text dimColor> to land at 100%</Text>}
     </Text>
   )
+}
+
+export function dayScale(days: readonly DayUsage[]): number {
+  return Math.max(EVEN_DAY_PCT, ...days.map(day => day.used))
 }
 
 export function smallBar({ Text }: Elements, ratio: number, width: number, tone: Tone): RenderElement {
@@ -184,7 +187,7 @@ function dayRow(elements: Elements, day: DayUsage, scale: number, layout: Layout
 function daysBlock(elements: Elements, days: DayUsage[], today: string, layout: Layout): RenderElement | null {
   if (days.length === 0) return null
 
-  const scale = Math.max(EVEN_DAY_PCT, ...days.map(day => day.used))
+  const scale = dayScale(days)
   const { Box } = elements
 
   return <Box flexDirection="column">{days.map(day => dayRow(elements, day, scale, layout, day.date === today))}</Box>

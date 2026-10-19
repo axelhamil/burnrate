@@ -1,10 +1,10 @@
 import type { BurnrateSessionCost } from '../types'
+import { HOUR_MS } from './pace'
 
-export type ProjectSpend = { label: string; usd: number }
+type ProjectSpend = { label: string; usd: number }
 
 export type WeekSpend = { sessionUsd: number; projects: ProjectSpend[] }
 
-const HOUR_MS = 3_600_000
 const TOP_PROJECTS = 5
 
 function usdSince(hours: Readonly<Record<string, number>>, sinceHour: number): number {

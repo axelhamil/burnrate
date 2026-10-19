@@ -1,4 +1,4 @@
-7-day window · Will hit the limit around Sat 10:37      5-hour window · Limit reached
+7-day window · Will hit the limit around Sat 10:24      5-hour window · Limit reached
 █████████████████████████████████████│██████░░░░ 91%    ███████████████████████████████████│████████████ 100%
 Used 91% · resets Sun 11:00 (in 1d 15h)                 Used 100% · resets 21:20 (in 1h 20m)
 Projected at reset 115% typical week                    Quota size: learning (needs 5 points)

@@ -1,4 +1,4 @@
-7-day window · Will hit the limit around Sat 10:37
+7-day window · Will hit the limit around Sat 10:24
 █████████████████████████████████████│██████░░░░ 91%
 Used 91% · resets Sun 11:00 (in 1d 15h)
 Projected at reset 115%

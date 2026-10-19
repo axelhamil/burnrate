@@ -47,7 +47,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 `/burnrate` toggles the pane. It refreshes on every API response and once a minute.
 
-A one-line band also shows right above the prompt, behind a bar tinted by the verdict, for example `▌ ● easy tiger   7d → 77%   12%/d   today █████ 14/14%   session 2.3%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), then the 7d projection, the daily budget, today against its budget (with a bar from 82 columns), what this session cost in quota points (in dollars until the quota size is learned), one bar per day with a reading (yellow above the even pace) and the 5h use. When the line is too long for the terminal it drops the day bars first, then the session, today and the budget. Turn it off with the `statusLine` option (default on) in the plugin settings.
+A one-line band also shows right above the prompt, behind a bar tinted by the verdict, for example `▌ ● easy tiger   7d → 77%   12%/d   today █████ 14/14%   session 2.3%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), then the 7d projection, the daily budget, today against its budget (with a bar from 82 columns), what this session cost in quota points (in dollars until the quota size is learned), one bar per day with a reading, shown from 2 days (yellow above the even pace) and the 5h use. When the line is too long for the terminal it drops the day bars first, then the session, today and the budget. Turn it off with the `statusLine` option (default on) in the plugin settings.
 
 On Opus, when the worse verdict is `easy tiger` or above, the band ends with `try sonnet`.
 
@@ -75,7 +75,7 @@ Each window gets a verdict:
 
 ## How it is computed
 
-Notation: `p` is the percentage used, `e` the elapsed fraction of the window (0 to 1). The last 6 closed windows of the same kind are weighted `0.5^(age / 2)`, age 0 being the most recent.
+Notation: `p` is the percentage used, never below the peak any session recorded for the window (an idle session's reading goes stale), `e` the elapsed fraction of the window (0 to 1). The last 6 closed windows of the same kind are weighted `0.5^(age / 2)`, age 0 being the most recent.
 
 - `T`, the typical peak, is the weighted mean of their peaks.
 - For each past window with hourly samples, its use at the same offset as now is interpolated between the last sample at or before that offset and the first one after it, anchored at 0 at the window start and at its peak at reset. `R` is the weighted mean of `max(0, peak - use at that offset)`.
@@ -88,17 +88,18 @@ Projection at reset, first that applies:
 
 Budget, per day for 7d and per hour for 5h: `(100 - p) / units left before reset`. The even pace is `100 / 7` per day or `100 / 5` per hour; the budget tone compares the two.
 
-Today (7d only): `used today = p - p at the first reading of the day`, against `(100 - p at day start) / days left from that reading`.
+Today (7d only): `used today = p - p at day start`, against `min(headroom, headroom / days left from day start)` where `headroom = 100 - p at day start`. The day start is the window's peak before the first reading of the day, or that reading when the window has none or was last sampled more than a day ago.
 
 Hit time, when the projection passes 100%: `rate = (projection - p) / seconds left`, `hit at = now + (100 - p) / rate`.
 
-Quota size: Claude Code reports a session cost in API-equivalent dollars. burnrate records it per hour and compares it with the hourly samples of each window, 7d and 5h alike. For a window, `$ per 1% = sum of $ spent in hours where the percentage rose / points gained`, once at least 5 points were gained. `Quota ≈ 100 * $ per 1%` per week or per 5 hours. Windows that started before the 49-day cost retention are left out.
+Quota size: Claude Code reports a session cost in API-equivalent dollars. burnrate records it per hour and compares it with the hourly samples of each window, 7d and 5h alike. For a window, `$ per 1% = sum of $ spent in hours where the percentage rose / points gained`, once at least 5 points were gained with some spend recorded. `Quota ≈ 100 * $ per 1%` per week or per 5 hours. While the current window has under 5 points, the size falls back to the latest closed window that has a ratio. Windows that started before the 49-day cost retention are left out.
 
 Quota change (7d only): the current and previous windows are compared with the median `$ per 1%` of the closed windows before them. When both differ by more than 20% in the same direction, the pane shows `Quota up ~N% vs usual` or `Quota down ~N% vs usual`.
 
 ## Data
 
 - The plugin store (`$.store`, key `history`): peaks per window, the percentage at each day start and hourly samples. Peaks and hourly samples are kept 49 days (enough for 6 past weeks), day starts 30 days.
+- The plugin store, key `lastReadings`: the last readings recorded, so an unchanged reading polled by the minute ticker is not recorded again.
 - The plugin store, keys `alerts` (worst verdict reached and notification per window, until the window resets) and `reportedWeek` (the last week recapped).
 - `~/.claude/burnrate/cost/<sessionId>.json` (or under `$CLAUDE_CONFIG_DIR`): one file per session with its hourly cost and project folder name, so concurrent sessions never write the same file. Buckets older than 49 days are dropped; files untouched for 49 days are ignored but stay on disk, since the plugin API cannot delete files.
 
