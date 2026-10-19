@@ -42,7 +42,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 `/burnrate` toggles the pane. It refreshes on every API response and once a minute.
 
-A one-line band also shows right above the prompt, in color, for example `● easy tiger   7d → 77%   12%/d   today █████ 14/14%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), and from 82 columns adds a bar of today's budget and one bar per day with a reading (the same days as the pane), yellow above the even pace. Under 64 columns it drops today to stay on one line. Turn it off with the `statusLine` option (default on) in the plugin settings.
+A one-line band also shows right above the prompt, in a rounded frame tinted by the verdict, for example `● easy tiger   7d → 77%   12%/d   today █████ 14/14%   ▄█▆   5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`), and from 86 columns adds a bar of today's budget and one bar per day with a reading (the same days as the pane), yellow above the even pace. Under 68 columns it drops today to stay on one line. Turn it off with the `statusLine` option (default on) in the plugin settings.
 
 Each window gets a verdict:
 
