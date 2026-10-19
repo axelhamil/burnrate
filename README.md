@@ -42,17 +42,17 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 `/burnrate` toggles the pane. It refreshes on every API response and once a minute.
 
-A one-line summary also shows under the prompt, for example `7d end 96% · 12%/d · today 14/14% · 5h 45%`. Turn it off with the `statusLine` option (default on) in the plugin settings.
+A one-line summary also shows under the prompt, for example `easy tiger · 7d end 96% · 12%/d · today 14/14% · ▃█▅ · 5h 45%`. It opens with the worse verdict of the two windows in a word (`go wild`, `cruising`, `easy tiger`, `hit the brakes`, `tapped out`) and ends the 7d part with one bar per day with a reading (the same days as the pane), scaled against the busiest day or the even pace, whichever is higher. Turn it off with the `statusLine` option (default on) in the plugin settings.
 
 Each window gets a verdict:
 
-| Verdict | When |
-| --- | --- |
-| Limit reached | used is 100% |
-| Will hit the limit around ... | projection above 100% |
-| Ahead of pace: ease off | budget below 85% of the even pace |
-| Room to spare | budget at least 115% of the even pace and projection at most 85% |
-| On track | anything else |
+| Verdict | Status line | When |
+| --- | --- | --- |
+| Limit reached | tapped out | used is 100% |
+| Will hit the limit around ... | hit the brakes | projection above 100% |
+| Ahead of pace: ease off | easy tiger | budget below 85% of the even pace |
+| Room to spare | go wild | budget at least 115% of the even pace and projection at most 85% |
+| On track | cruising | anything else |
 
 ## How it is computed
 
