@@ -55,15 +55,6 @@ export function verdictOf(view: WindowView): Verdict {
   return 'on_track'
 }
 
-function hitTime(view: WindowView, now: number): number | null {
-  if (view.projected === null || view.projected <= 100 || view.secondsLeft <= 0) return null
-
-  const pctPerSecond = (view.projected - view.pct) / view.secondsLeft
-  if (pctPerSecond <= 0) return null
-
-  return now + ((100 - view.pct) / pctPerSecond) * 1_000
-}
-
 function quotaSize(state: BurnrateSnapshot, view: WindowView): QuotaSize | null {
   const ratios = windowRatios(state.history.hours, state.costs, view.kind, state.now)
   const usdPerPoint = quotaUsdPerPoint(ratios, view.key)
@@ -90,7 +81,7 @@ export function insightsOf(state: BurnrateSnapshot): WindowInsight[] {
       return {
         view,
         verdict: verdictOf(view),
-        hitAt: hitTime(view, state.now),
+        hitAt: view.hitAt,
         size: quotaSize(state, view),
         days: isWeek ? dailyUsage(state.history, view.key, view.pct) : [],
         spend: isWeek ? weekSpend(state.sessions, view.resetsAt - WEEK_MS, state.sessionId) : null,

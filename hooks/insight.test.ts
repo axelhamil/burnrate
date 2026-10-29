@@ -17,6 +17,7 @@ function view(pct: number, projected: number | null, ratio: number | null): Wind
     basis: 'linear',
     analogSample: 0,
     projected,
+    hitAt: null,
     projectionTone: 'normal',
     budget: ratio === null ? null : { value: 10, unit: 'd', ratio, tone: 'dim' },
     today: null,

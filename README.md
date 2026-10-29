@@ -82,6 +82,7 @@ Notation: `p` is the percentage used, never below the peak any session recorded 
 
 Projection at reset, first that applies:
 
+- hourly rhythm (7d only), once hourly samples span at least 3 days: `p + sum over the hours left of U(hour of day)`, partial hours prorated (label `from your hourly rhythm`). `U(h)` is the use at local hour `h` (rise from the window's previous sample) averaged over the elapsed days, weighted `0.5^(days ago / 3)`, an hour without use counting 0
 - analog, when at least 2 past windows have samples: `p + R` (label `from your last N weeks`)
 - typical, with peaks only: `p + (1 - e) * (p + (1 - e) * T)` (label `typical week`)
 - linear, without history: `p / e`, shown once at least 10% of the window has elapsed
@@ -90,7 +91,7 @@ Budget, per day for 7d and per hour for 5h: `(100 - p) / units left before reset
 
 Today (7d only): `used today = p - p at day start`, against `min(headroom, headroom / days left from day start)` where `headroom = 100 - p at day start`. The day start is the window's peak before the first reading of the day, or that reading when the window has none or was last sampled more than a day ago.
 
-Hit time, when the projection passes 100%: `rate = (projection - p) / seconds left`, `hit at = now + (100 - p) / rate`.
+Hit time, when the projection passes 100%: on the hourly rhythm, the first moment the hours left add up to `100 - p`; otherwise `rate = (projection - p) / seconds left`, `hit at = now + (100 - p) / rate`.
 
 Quota size: Claude Code reports a session cost in API-equivalent dollars. burnrate records it per hour and compares it with the hourly samples of each window, 7d and 5h alike. For a window, `$ per 1% = sum of $ spent in hours where the percentage rose / points gained`, once at least 5 points were gained with some spend recorded. `Quota ≈ 100 * $ per 1%` per week or per 5 hours. While the current window has under 5 points, the size falls back to the latest closed window that has a ratio. Windows that started before the 49-day cost retention are left out.
 

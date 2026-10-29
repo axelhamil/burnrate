@@ -225,6 +225,73 @@ describe('window view', () => {
   })
 })
 
+type DayUse = { daysAgo: number; hours: number[]; perHour: number }
+
+function localAt(daysAgo: number, hour: number): number {
+  return new Date(2026, 9, 20 - daysAgo, hour).getTime()
+}
+
+function hourlyHistory(key: string, days: readonly DayUse[]): BurnrateHistory {
+  let pct = 0
+  const samples = days.flatMap(({ daysAgo, hours, perHour }) => {
+    const first = Math.min(...hours) - 1
+
+    return [first, ...hours].map(hourOfDay => {
+      if (hourOfDay !== first) pct += perHour
+
+      return { windowKey: key, hour: Math.floor(localAt(daysAgo, hourOfDay) / HOUR_MS), pct }
+    })
+  })
+
+  return { ...EMPTY_HISTORY, hours: Object.fromEntries(samples.map(sample => [`${sample.windowKey}#${sample.hour}`, sample])) }
+}
+
+describe('hourly rhythm projection', () => {
+  const daytime = [9, 10, 11, 12, 13, 14, 15, 16, 17]
+
+  test('given usage only in daytime over 5 days, when projecting a week at night with only night hours left, then it stays at the current use', () => {
+    const now = localAt(0, 23)
+    const resetsAt = now + 10 * HOUR_MS
+    const days = [4, 3, 2, 1, 0].map(daysAgo => ({ daysAgo, hours: daytime, perHour: 1 }))
+    const view = describeWindow(weekReading(90, resetsAt), hourlyHistory(windowKey('seven_day', resetsAt), days), now, '2026-10-20')
+
+    expect(view?.basis).toBe('profile')
+    expect(Math.round(view?.projected ?? 0)).toBe(90)
+  })
+
+  test('given recent days heavier than older ones at 10h, when projecting over the next 10h, then the recent days weigh more', () => {
+    const now = localAt(0, 8)
+    const resetsAt = localAt(0, 12)
+    const days = [6, 5, 4, 3, 2, 1].map(daysAgo => ({ daysAgo, hours: [10], perHour: daysAgo > 3 ? 1 : 3 }))
+    const view = describeWindow(weekReading(50, resetsAt), hourlyHistory(windowKey('seven_day', resetsAt), days), now, '2026-10-20')
+    const added = (view?.projected ?? 0) - 50
+
+    expect(added).toBeGreaterThan(2.2)
+    expect(added).toBeLessThan(3)
+  })
+
+  test('given daytime-only usage at 5 points an hour, when a week at 80% is projected past 100 at 22h, then the limit is hit in daytime the next day', () => {
+    const now = localAt(0, 22)
+    const resetsAt = localAt(-1, 18)
+    const days = [4, 3, 2, 1, 0].map(daysAgo => ({ daysAgo, hours: daytime, perHour: 5 }))
+    const view = describeWindow(weekReading(80, resetsAt), hourlyHistory(windowKey('seven_day', resetsAt), days), now, '2026-10-20')
+    const hitHour = new Date(view?.hitAt ?? now).getHours()
+
+    expect(view?.projected).toBeGreaterThan(100)
+    expect(view?.hitAt).toBeGreaterThan(localAt(-1, 9))
+    expect(hitHour).toBeLessThan(18)
+  })
+
+  test('given hourly samples spanning under 3 days, when projecting a week, then the previous basis is used', () => {
+    const now = localAt(0, 23)
+    const resetsAt = now + 10 * HOUR_MS
+    const days = [1, 0].map(daysAgo => ({ daysAgo, hours: daytime, perHour: 1 }))
+    const view = describeWindow(weekReading(90, resetsAt), hourlyHistory(windowKey('seven_day', resetsAt), days), now, '2026-10-20')
+
+    expect(view?.basis).toBe('linear')
+  })
+})
+
 describe('budget left', () => {
   test('given 7d at the even pace, when budgeting, then it is dim', () => {
     const budget = budgetLeft('seven_day', 50, 3.5 * DAY)

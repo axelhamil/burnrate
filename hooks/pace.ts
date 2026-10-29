@@ -1,5 +1,5 @@
 import type { BurnrateDayStart, BurnrateHistory, BurnrateHourSample, BurnratePeak, BurnrateReading } from '../types'
-import { outlookOf, type Outlook, type PastWindow, type TracePoint } from './outlook'
+import { hourlyProfile, outlookOf, type HourSlot, type Outlook, type PastWindow, type TracePoint } from './outlook'
 
 export type WindowKind = 'five_hour' | 'seven_day'
 
@@ -11,7 +11,7 @@ type Today = { used: number; budget: number; tone: Tone }
 
 export type DayUsage = { date: string; used: number }
 
-type ProjectionBasis = 'analog' | 'typical' | 'linear'
+type ProjectionBasis = 'profile' | 'analog' | 'typical' | 'linear'
 
 export type WindowView = {
   kind: WindowKind
@@ -23,6 +23,7 @@ export type WindowView = {
   basis: ProjectionBasis
   analogSample: number
   projected: number | null
+  hitAt: number | null
   projectionTone: Tone
   budget: Budget | null
   today: Today | null
@@ -35,6 +36,7 @@ const KEY_ROUNDING_MS = 10 * MINUTE_MS
 const ANALOG_WINDOWS = 6
 const MIN_LINEAR_ELAPSED = 0.1
 const ELAPSED_EPSILON = 1e-9
+const MIN_PROFILE_DAYS = 3
 
 export const HOUR_MS = HOUR_SECONDS * 1_000
 export const DAY_MS = DAY_SECONDS * 1_000
@@ -248,6 +250,108 @@ function basisOf(outlook: Outlook | null): ProjectionBasis {
   return outlook.remaining === null ? 'typical' : 'analog'
 }
 
+function localMidnight(ms: number): number {
+  const date = new Date(ms)
+
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+function usageByHour(samples: readonly BurnrateHourSample[]): Map<number, number> {
+  const sorted = [...samples].sort((a, b) => a.windowKey.localeCompare(b.windowKey) || a.hour - b.hour)
+
+  return sorted.reduce((usage, sample, index) => {
+    const previous = sorted[index - 1]
+    if (previous === undefined || previous.windowKey !== sample.windowKey) return usage
+
+    return usage.set(sample.hour, (usage.get(sample.hour) ?? 0) + Math.max(0, sample.pct - previous.pct))
+  }, new Map<number, number>())
+}
+
+function profileFor(history: BurnrateHistory, kind: WindowKind, now: number): number[] | null {
+  const samples = Object.values(history.hours).filter(sample => sample.windowKey.startsWith(`${kind}@`))
+  const firstHour = samples.reduce((first, sample) => Math.min(first, sample.hour), Number.POSITIVE_INFINITY)
+  if (now - firstHour * HOUR_MS < MIN_PROFILE_DAYS * DAY_MS) return null
+
+  const usage = usageByHour(samples)
+  const today = localMidnight(now)
+  const elapsedHours = Math.floor(now / HOUR_MS) - firstHour - 1
+  const slots = Array.from({ length: Math.max(0, elapsedHours) }, (_, index): HourSlot => {
+    const hour = firstHour + 1 + index
+    const startMs = hour * HOUR_MS
+
+    return {
+      hourOfDay: new Date(startMs).getHours(),
+      ageDays: Math.round((today - localMidnight(startMs)) / DAY_MS),
+      used: usage.get(hour) ?? 0,
+    }
+  })
+
+  return hourlyProfile(slots)
+}
+
+type HourSpan = { startMs: number; perMs: number; used: number }
+
+function hourSpans(profile: readonly number[], from: number, until: number): HourSpan[] {
+  const firstHour = Math.floor(from / HOUR_MS)
+  const hourCount = Math.max(0, Math.ceil(until / HOUR_MS) - firstHour)
+
+  return Array.from({ length: hourCount }, (_, index) => {
+    const startMs = Math.max(from, (firstHour + index) * HOUR_MS)
+    const endMs = Math.min(until, (firstHour + index + 1) * HOUR_MS)
+    const perMs = (profile[new Date(startMs).getHours()] ?? 0) / HOUR_MS
+
+    return { startMs, perMs, used: perMs * Math.max(0, endMs - startMs) }
+  })
+}
+
+function profiledHitAt(spans: readonly HourSpan[], pct: number): number | null {
+  let left = 100 - pct
+
+  for (const { startMs, perMs, used } of spans) {
+    if (used >= left && perMs > 0) return startMs + left / perMs
+
+    left -= used
+  }
+
+  return null
+}
+
+function linearHitAt(pct: number, projected: number | null, secondsLeft: number, now: number): number | null {
+  if (projected === null || projected <= 100 || secondsLeft <= 0) return null
+
+  const pctPerSecond = (projected - pct) / secondsLeft
+  if (pctPerSecond <= 0) return null
+
+  return now + ((100 - pct) / pctPerSecond) * 1_000
+}
+
+type Projection = { basis: ProjectionBasis; projected: number | null; hitAt: number | null; analogSample: number }
+
+function projectionFor(
+  history: BurnrateHistory,
+  kind: WindowKind,
+  pct: number,
+  resetsAt: number,
+  now: number,
+): Projection {
+  const profile = kind === 'seven_day' ? profileFor(history, kind, now) : null
+  if (profile !== null) {
+    const spans = hourSpans(profile, now, resetsAt)
+    const projected = pct + spans.reduce((sum, { used }) => sum + used, 0)
+    const hitAt = pct < 100 ? profiledHitAt(spans, pct) : null
+
+    return { basis: 'profile', projected, hitAt, analogSample: 0 }
+  }
+
+  const secondsLeft = Math.max(0, (resetsAt - now) / 1_000)
+  const windowSeconds = WINDOW_SECONDS[kind]
+  const outlook = outlookFor(history, kind, resetsAt, now, Math.max(0, windowSeconds - secondsLeft))
+  const projected = projectAtReset({ pct, secondsLeft, windowSeconds, outlook })
+  const hitAt = linearHitAt(pct, projected, secondsLeft, now)
+
+  return { basis: basisOf(outlook), projected, hitAt, analogSample: outlook?.traced ?? 0 }
+}
+
 export function projectionTone(projected: number | null): Tone {
   if (projected === null) return 'dim'
   if (projected > 100) return 'alert'
@@ -324,9 +428,7 @@ export function describeWindow(
   const pct = reading.percentUsed
   const key = windowKey(kind, resetsAt)
   const secondsLeft = Math.max(0, (resetsAt - now) / 1_000)
-  const windowSeconds = WINDOW_SECONDS[kind]
-  const outlook = outlookFor(history, kind, resetsAt, now, Math.max(0, windowSeconds - secondsLeft))
-  const projected = projectAtReset({ pct, secondsLeft, windowSeconds, outlook })
+  const { basis, projected, hitAt, analogSample } = projectionFor(history, kind, pct, resetsAt, now)
   const start = history.dayStarts[`${key}#${today}`]
   const todayView = kind === 'seven_day' && start !== undefined ? todayUsage(pct, start, resetsAt) : null
 
@@ -337,9 +439,10 @@ export function describeWindow(
     resetsAt,
     secondsLeft,
     elapsedPct: Math.min(100, Math.max(0, 100 * (1 - secondsLeft / WINDOW_SECONDS[kind]))),
-    basis: basisOf(outlook),
-    analogSample: outlook?.traced ?? 0,
+    basis,
+    analogSample,
     projected,
+    hitAt,
     projectionTone: projectionTone(projected),
     budget: budgetLeft(kind, pct, secondsLeft),
     today: todayView,
