@@ -101,6 +101,7 @@ function usedLine({ Text }: Elements, view: WindowView): RenderElement {
 }
 
 function basisText(view: WindowView): string {
+  if (view.basis === 'profile') return 'from your hourly rhythm'
   if (view.basis === 'linear') return 'linear, no history yet'
   if (view.basis === 'typical') return `typical ${PERIODS_LONG[view.kind]}`
 

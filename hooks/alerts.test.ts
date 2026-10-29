@@ -21,6 +21,7 @@ function insight(verdict: Verdict, hitAt: number | null = null): WindowInsight {
       basis: 'linear',
       analogSample: 0,
       projected: 120,
+      hitAt,
       projectionTone: 'alert',
       budget: null,
       today: null,
