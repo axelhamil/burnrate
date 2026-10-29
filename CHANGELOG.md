@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/axelhamil/burnrate/compare/v0.5.0...v0.5.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **pace:** project the week from your hourly rhythm ([#15](https://github.com/axelhamil/burnrate/issues/15)) ([635e43d](https://github.com/axelhamil/burnrate/commit/635e43d9f096b89a47daee09ee11d15d4b1273c4))
+
 ## [0.5.0](https://github.com/axelhamil/burnrate/compare/v0.4.1...v0.5.0) (2026-10-19)
 
 
