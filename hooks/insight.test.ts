@@ -37,8 +37,16 @@ describe('verdict', () => {
     expect(verdictOf(view(100, null, null))).toBe('limit')
   })
 
-  test('given a projection a fraction above 100, when judging, then it will hit the limit', () => {
-    expect(verdictOf(view(50, 100.4, 1))).toBe('will_hit')
+  test('given a projection a fraction above 100 with the window ending, when judging, then it will hit the limit', () => {
+    expect(verdictOf({ ...view(50, 100.4, 1), secondsLeft: 0 })).toBe('will_hit')
+  })
+
+  test('given a fresh week projected at 104, when judging, then it stays on track until the projection clears the margin left', () => {
+    const fresh = { ...view(0, 103.7, 1), secondsLeft: 7 * 86_400 }
+
+    expect(verdictOf(fresh)).toBe('on_track')
+    expect(verdictOf({ ...fresh, projected: 110.1 })).toBe('will_hit')
+    expect(verdictOf({ ...fresh, secondsLeft: 2 * 86_400 })).toBe('will_hit')
   })
 
   test('given a budget at exactly 85% of the even pace, when judging, then it is on track, and just under it is ahead', () => {
