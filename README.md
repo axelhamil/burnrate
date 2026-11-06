@@ -68,7 +68,7 @@ Each window gets a verdict:
 | Verdict | Band | When |
 | --- | --- | --- |
 | Limit reached | tapped out | used is 100% |
-| Will hit the limit around ... | hit the brakes | projection above 100% |
+| Will hit the limit around ... | hit the brakes | projection above 100%, plus a margin of 10 points scaled by the share of the window left |
 | Ahead of pace: ease off | easy tiger | budget below 85% of the even pace |
 | Room to spare | go wild | budget at least 115% of the even pace and projection at most 85% |
 | On track | cruising | anything else |

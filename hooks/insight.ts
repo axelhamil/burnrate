@@ -1,5 +1,5 @@
 import type { BurnrateSnapshot } from '../types'
-import { dailyUsage, describeWindow, localDate, WEEK_MS, type DayUsage, type WindowKind, type WindowView } from './pace'
+import { dailyUsage, describeWindow, localDate, WEEK_MS, WINDOW_SECONDS, type DayUsage, type WindowKind, type WindowView } from './pace'
 import { detectQuotaChange, quotaUsdPerPoint, windowRatios, type QuotaChange } from './quota-size'
 import { lastWeekReport, type WeekReport } from './report'
 import { weekSpend, type WeekSpend } from './sessions'
@@ -30,6 +30,7 @@ export const VERDICT_SEVERITY: Record<Verdict, number> = { room: 0, on_track: 1,
 const AHEAD_RATIO = 0.85
 const ROOM_RATIO = 1.15
 const ROOM_MAX_PROJECTION = 85
+const HIT_MARGIN_AT_START = 10
 const KIND_ORDER: Record<WindowKind, number> = { seven_day: 0, five_hour: 1 }
 
 export function isVerdict(value: unknown): value is Verdict {
@@ -43,9 +44,15 @@ export function worstVerdict(insights: readonly WindowInsight[]): Verdict | null
   )
 }
 
+function hitMargin(view: WindowView): number {
+  const leftShare = Math.min(1, view.secondsLeft / WINDOW_SECONDS[view.kind])
+
+  return HIT_MARGIN_AT_START * leftShare
+}
+
 export function verdictOf(view: WindowView): Verdict {
   if (view.pct >= 100) return 'limit'
-  if (view.projected !== null && view.projected > 100) return 'will_hit'
+  if (view.projected !== null && view.projected > 100 + hitMargin(view)) return 'will_hit'
 
   const ratio = view.budget?.ratio
   if (ratio === undefined) return 'on_track'
