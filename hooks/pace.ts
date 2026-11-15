@@ -37,6 +37,7 @@ const ANALOG_WINDOWS = 6
 const MIN_LINEAR_ELAPSED = 0.1
 const ELAPSED_EPSILON = 1e-9
 const MIN_PROFILE_DAYS = 3
+const RESET_DROP = 25
 
 export const HOUR_MS = HOUR_SECONDS * 1_000
 export const DAY_MS = DAY_SECONDS * 1_000
@@ -165,14 +166,54 @@ export function recordReadings(
   return pruned(recorded, now)
 }
 
-export function withPeaks(readings: readonly BurnrateReading[], history: BurnrateHistory): BurnrateReading[] {
+export function keyOf(reading: BurnrateReading): string | null {
+  const resetsAt = resetsAtMs(reading)
+  if (resetsAt === null || !isWindowKind(reading.kind)) return null
+
+  return windowKey(reading.kind, resetsAt)
+}
+
+export function earlyResets(history: BurnrateHistory, readings: readonly BurnrateReading[]): BurnrateReading[] {
+  return readings.filter(reading => {
+    const key = keyOf(reading)
+    const peak = key === null ? undefined : history.peaks[key]?.peak
+
+    return peak !== undefined && peak - reading.percentUsed > RESET_DROP
+  })
+}
+
+function rebasedDayStart(history: BurnrateHistory, key: string, pct: number, now: number, today: string): BurnrateHistory {
+  const dayKey = `${key}#${today}`
+  const start = history.dayStarts[dayKey]
+  if (start === undefined || start.pct <= pct) return history
+
+  return { ...history, dayStarts: { ...history.dayStarts, [dayKey]: { ...start, pct, seenAt: now } } }
+}
+
+export function resetWindows(
+  history: BurnrateHistory,
+  resets: readonly BurnrateReading[],
+  now: number,
+  today: string,
+): BurnrateHistory {
+  return resets.reduce((current, reading) => {
+    const key = keyOf(reading)
+    const peak = key === null ? undefined : current.peaks[key]
+    if (key === null || peak === undefined || peak.peak <= reading.percentUsed) return current
+
+    const lowered = { ...current, peaks: { ...current.peaks, [key]: { ...peak, peak: reading.percentUsed } } }
+
+    return rebasedDayStart(lowered, key, reading.percentUsed, now, today)
+  }, history)
+}
+
+export function withLatest(readings: readonly BurnrateReading[], history: BurnrateHistory, isFresh: boolean): BurnrateReading[] {
   return readings.map(reading => {
-    const resetsAt = resetsAtMs(reading)
-    if (resetsAt === null || !isWindowKind(reading.kind)) return reading
+    const key = keyOf(reading)
+    const peak = key === null ? undefined : history.peaks[key]?.peak
+    if (peak === undefined) return reading
 
-    const peak = history.peaks[windowKey(reading.kind, resetsAt)]?.peak ?? reading.percentUsed
-
-    return { ...reading, percentUsed: Math.max(reading.percentUsed, peak) }
+    return { ...reading, percentUsed: isFresh ? Math.max(reading.percentUsed, peak) : peak }
   })
 }
 

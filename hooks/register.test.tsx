@@ -279,6 +279,46 @@ test('given another session pushed the 7d window to 50%, when this idle session 
   expect(await texts($)).toContain('Used 50%')
 })
 
+test('given a week tapped out at 100% today, when a new session reads it reset early under the same reset time, then the pane shows the new use', async ($, on) => {
+  const resetsAt = NOW + 3 * DAY_MS
+  const key = windowKey('seven_day', resetsAt)
+  const dayStarts = { [`${key}#2026-10-17`]: { windowKey: key, date: '2026-10-17', pct: 90, seenAt: NOW - HOUR_MS } }
+  mock.store(on, { history: { peaks: { [key]: { kind: 'seven_day', resetsAt, peak: 100 } }, dayStarts, hours: {} } })
+  mock.clock(on, { now: NOW })
+  memoryFs(on, NOW)
+
+  await measure($, [reading('seven_day', 2, resetsAt)])
+  const drawn = await texts($)
+
+  expect(drawn).toContain('Used 2%')
+  expect(drawn).toContain('Today 0% of')
+})
+
+test('given a 5h limit already notified, when the window is reset early and runs out again, then it is notified again', async ($, on) => {
+  const resetsAt = NOW + 2 * HOUR_MS
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  const { notices } = memoryFs(on, NOW)
+
+  for (const pct of [100, 1, 100]) await measure($, [reading('five_hour', pct, resetsAt)])
+
+  expect(notices.filter(text => text.includes('limit reached'))).toHaveLength(2)
+})
+
+test('given another session saw the week reset to 2%, when this idle session reads a stale 100%, then the pane shows 2%', async ($, on) => {
+  const resetsAt = NOW + 3 * DAY_MS
+  const key = windowKey('seven_day', resetsAt)
+  mock.store(on, { history: { peaks: { [key]: { kind: 'seven_day', resetsAt, peak: 2 } }, dayStarts: {}, hours: {} } })
+  const clock = mock.clock(on, { now: NOW })
+  memoryFs(on, NOW)
+  on('session.usage', () => ({ value: { startedAt: NOW, context: { window: 200_000 }, rateLimits: [reading('seven_day', 100, resetsAt)] } }))
+
+  await measure($, [])
+  await clock.advance(60_000)
+
+  expect(await texts($)).toContain('Used 2%')
+})
+
 test('given two readings arriving at once, when a 5h window turns to hitting the limit, then it is toasted once', async ($, on) => {
   mock.store(on)
   mock.clock(on, { now: NOW })

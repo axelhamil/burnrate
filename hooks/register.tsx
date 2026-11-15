@@ -4,7 +4,7 @@ import type { BurnrateCostLedger, BurnrateHistory, BurnrateReading, BurnrateSess
 import { alertsFor, parseAlertState, withNotified, type Notice } from './alerts'
 import { bandTree } from './band'
 import { insightsOf, type WindowInsight } from './insight'
-import { EMPTY_HISTORY, localDate, parseHistory, recordReadings, RETENTION_MS, withPeaks } from './pace'
+import { earlyResets, EMPTY_HISTORY, keyOf, localDate, parseHistory, recordReadings, resetWindows, RETENTION_MS, withLatest } from './pace'
 import { paneTree, type Elements } from './pane'
 import { mergeCosts, parseLedger, recordCost } from './quota-size'
 import { reportText } from './report'
@@ -112,11 +112,9 @@ async function recordedHistory(
 ): Promise<BurnrateHistory> {
   if (!isFresh && !(await isNewReading($, readings))) return stored
 
-  const history = recordReadings(stored, readings, now, localDate(now))
-  if (history !== stored) await $.store.set(STORE_KEY, history)
   await $.store.set(LAST_READINGS_KEY, readings)
 
-  return history
+  return recordReadings(stored, readings, now, localDate(now))
 }
 
 async function sentKeys($: EngineInterface, notices: readonly Notice[]): Promise<string[]> {
@@ -130,6 +128,14 @@ async function sentKeys($: EngineInterface, notices: readonly Notice[]): Promise
   )
 
   return sent.flat()
+}
+
+async function forgetAlerts($: EngineInterface, resets: readonly BurnrateReading[]): Promise<void> {
+  if (resets.length === 0) return
+
+  const keys = resets.map(keyOf)
+  const previous = parseAlertState(await $.store.get(ALERTS_KEY))
+  await $.store.set(ALERTS_KEY, Object.fromEntries(Object.entries(previous).filter(([key]) => !keys.includes(key))))
 }
 
 async function raiseAlerts($: EngineInterface, insights: readonly WindowInsight[], now: number): Promise<void> {
@@ -158,9 +164,14 @@ async function refreshNow(
   isFresh: boolean,
 ): Promise<void> {
   const now = await $.clock.now()
-  const stored = parseHistory(await $.store.get(STORE_KEY))
-  const readings = withPeaks(toReadings(rateLimits), stored)
+  const loaded = parseHistory(await $.store.get(STORE_KEY))
+  const raw = toReadings(rateLimits)
+  const resets = isFresh ? earlyResets(loaded, raw) : []
+  const stored = resetWindows(loaded, resets, now, localDate(now))
+  const readings = withLatest(raw, stored, isFresh)
+  await forgetAlerts($, resets)
   const history = await recordedHistory($, stored, readings, now, isFresh)
+  if (history !== loaded) await $.store.set(STORE_KEY, history)
 
   const dir = await costDir($)
   const sessionId = await $.session.id()
