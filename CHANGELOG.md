@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/axelhamil/burnrate/compare/v0.5.2...v0.5.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* **pace:** drop a window back down when the quota is reset early ([a4119f3](https://github.com/axelhamil/burnrate/commit/a4119f331bcf4ccd1da72529a732ca3d8590ab44))
+
 ## [0.5.2](https://github.com/axelhamil/burnrate/compare/v0.5.1...v0.5.2) (2026-11-06)
 
 
